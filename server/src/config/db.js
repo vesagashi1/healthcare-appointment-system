@@ -8,4 +8,10 @@ const pool = new Pool({
   database: process.env.DB_NAME,
 });
 
+pool.query("SELECT current_database()", (err, res) => {
+  if (!err) {
+    console.log("Connected to DB:", res.rows[0].current_database);
+  }
+});
+
 module.exports = pool;
