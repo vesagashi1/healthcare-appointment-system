@@ -6,17 +6,14 @@ const canAccessPatient = async (req, res, next) => {
     const role = req.user.role;
     const patientId = parseInt(req.params.patientId, 10);
 
-    // 🚫 Doctors are handled by canAccessWardPatient
     if (role === "doctor") {
       return next();
     }
 
-    // 1️⃣ Patient accessing own record
     if (role === "patient" && userId === patientId) {
       return next();
     }
 
-    // 2️⃣ Nurse / caregiver assigned to patient
     if (role === "nurse" || role === "caregiver") {
       const result = await pool.query(
         `
@@ -33,7 +30,6 @@ const canAccessPatient = async (req, res, next) => {
       }
     }
 
-    // 3️⃣ Deny everyone else
     return res.status(403).json({
       message: "Not authorized to access this patient",
     });

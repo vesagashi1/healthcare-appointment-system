@@ -4,7 +4,6 @@ module.exports = async (req, res, next) => {
   try {
     const user = req.user;
 
-    // If not a doctor → let next middleware handle it
     if (user.role !== "doctor") {
       return next();
     }
@@ -27,8 +26,6 @@ module.exports = async (req, res, next) => {
         message: "Doctor not assigned to patient's ward",
       });
     }
-
-    // ✅ Doctor authorized → STOP here
     return next();
   } catch (err) {
     console.error("WARD ACCESS ERROR:", err);
