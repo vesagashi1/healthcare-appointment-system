@@ -18,7 +18,6 @@ const auditLog = async ({ req, action, patientId }) => {
       ]
     );
   } catch (err) {
-    // ❗ Never block request if audit fails
     console.error("AUDIT LOG ERROR:", err);
   }
 };

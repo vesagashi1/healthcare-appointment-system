@@ -3,8 +3,6 @@ const pool = require("../config/db");
 const canDoctorWritePatient = async (req, res, next) => {
   try {
     const user = req.user;
-
-    // Not a doctor → skip
     if (user.role !== "doctor") {
       return next();
     }

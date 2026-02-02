@@ -9,15 +9,13 @@ const pool = require("../config/db");
 
 const router = express.Router();
 
-/**
- * CREATE patient record
- */
+
 router.post(
   "/:patientId/records",
   authMiddleware,
   hasPermission("CREATE_PATIENT_RECORD"),
-  canDoctorWritePatient, // doctors
-  canAccessPatient,      // nurses / caregivers
+  canDoctorWritePatient, 
+  canAccessPatient,     
   async (req, res) => {
     const { patientId } = req.params;
     const { record_type, content } = req.body;
@@ -52,9 +50,6 @@ router.post(
   }
 );
 
-/**
- * GET patient records
- */
 router.get(
   "/:patientId/records",
   authMiddleware,

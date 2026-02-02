@@ -24,7 +24,6 @@ const hasPermission = (permissionName) => {
 
       const permissions = result.rows.map((row) => row.name);
 
-      // 🔍 Optional debug (remove later)
       console.log("User permissions:", permissions);
 
       if (!permissions.includes(permissionName)) {
