@@ -5,7 +5,9 @@
   "main": "src/app.js",
   "scripts": {
     "dev": "nodemon src/app.js",
-    "start": "node src/app.js"
+    "start": "node src/app.js",
+    "db:setup": "psql -U vesa -d postgres -f db/setup.sql",
+    "db:reset": "dropdb --if-exists healthcare_db && npm run db:setup"
   },
   "keywords": [],
   "author": "",
