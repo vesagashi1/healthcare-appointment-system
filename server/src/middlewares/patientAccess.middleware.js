@@ -6,14 +6,30 @@ const canAccessPatient = async (req, res, next) => {
     const role = req.user.role;
     const patientId = parseInt(req.params.patientId, 10);
 
+    // Admin can access all patients
+    if (role === "admin") {
+      return next();
+    }
+
+    // For doctor role, let canAccessWardPatient middleware handle ward-based access
     if (role === "doctor") {
       return next();
     }
 
-    if (role === "patient" && userId === patientId) {
-      return next();
+    // For patient role, check if they're accessing their own record
+    if (role === "patient") {
+      // Get patient's user_id from patients table
+      const patientCheck = await pool.query(
+        `SELECT user_id FROM patients WHERE id = $1`,
+        [patientId]
+      );
+      
+      if (patientCheck.rowCount > 0 && patientCheck.rows[0].user_id === userId) {
+        return next();
+      }
     }
 
+    // For nurse/caregiver, check assignments
     if (role === "nurse" || role === "caregiver") {
       const result = await pool.query(
         `
