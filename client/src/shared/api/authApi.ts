@@ -1,4 +1,4 @@
-import { requestJson } from './http';
+import { requestJson } from "./http";
 
 export type RegisterRequest = {
   name: string;
@@ -24,9 +24,14 @@ export type LoginResponse = {
 };
 
 export function login(body: LoginRequest): Promise<LoginResponse> {
-  return requestJson<LoginResponse>('/api/auth/login', { method: 'POST', body });
+  return requestJson<LoginResponse>("/api/auth/login", {
+    method: "POST",
+    body,
+  });
 }
 
-export function register(body: RegisterRequest): Promise<{ message: string } | unknown> {
-  return requestJson('/api/auth/register', { method: 'POST', body });
+export function register(
+  body: RegisterRequest,
+): Promise<{ message: string } | unknown> {
+  return requestJson("/api/auth/register", { method: "POST", body });
 }

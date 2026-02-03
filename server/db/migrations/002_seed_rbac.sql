@@ -1,6 +1,8 @@
 -- =========================
 -- ROLES
 -- =========================
+SET search_path TO public;
+
 INSERT INTO roles (name) VALUES
   ('admin'),
   ('doctor'),

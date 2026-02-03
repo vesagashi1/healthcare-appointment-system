@@ -1,4 +1,4 @@
-import { requestJson } from './http';
+import { requestJson } from "./http";
 
 export type PatientRecord = {
   id: number;
@@ -19,12 +19,16 @@ export function getPatientRecords(token: string, patientId: number) {
     message: string;
     patientId: string;
     records: PatientRecord[];
-  }>(`/api/patients/${patientId}/records`, { method: 'GET', token });
+  }>(`/api/patients/${patientId}/records`, { method: "GET", token });
 }
 
-export function createPatientRecord(token: string, patientId: number, body: CreateRecordRequest) {
+export function createPatientRecord(
+  token: string,
+  patientId: number,
+  body: CreateRecordRequest,
+) {
   return requestJson<{
     message: string;
     record: PatientRecord;
-  }>(`/api/patients/${patientId}/records`, { method: 'POST', token, body });
+  }>(`/api/patients/${patientId}/records`, { method: "POST", token, body });
 }

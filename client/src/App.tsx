@@ -1,11 +1,11 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
-import { HomePage } from './pages/HomePage';
-import { LoginPage } from './pages/LoginPage';
-import { RegisterPage } from './pages/RegisterPage';
-import { ProtectedRoute } from './shared/auth/ProtectedRoute';
-import { DoctorDashboardPage } from './pages/doctor/DoctorDashboardPage';
-import { DoctorPatientRecordsPage } from './pages/doctor/DoctorPatientRecordsPage';
-import { DoctorApproveAppointmentPage } from './pages/doctor/DoctorApproveAppointmentPage';
+import { Navigate, Route, Routes } from "react-router-dom";
+import { HomePage } from "./pages/HomePage";
+import { LoginPage } from "./pages/LoginPage";
+import { RegisterPage } from "./pages/RegisterPage";
+import { ProtectedRoute } from "./shared/auth/ProtectedRoute";
+import { DoctorDashboardPage } from "./pages/doctor/DoctorDashboardPage";
+import { DoctorPatientRecordsPage } from "./pages/doctor/DoctorPatientRecordsPage";
+import { DoctorApproveAppointmentPage } from "./pages/doctor/DoctorApproveAppointmentPage";
 
 export default function App() {
   return (
@@ -16,8 +16,14 @@ export default function App() {
 
       <Route element={<ProtectedRoute requireRole="doctor" />}>
         <Route path="/doctor" element={<DoctorDashboardPage />} />
-        <Route path="/doctor/patient-records" element={<DoctorPatientRecordsPage />} />
-        <Route path="/doctor/approve-appointment" element={<DoctorApproveAppointmentPage />} />
+        <Route
+          path="/doctor/patient-records"
+          element={<DoctorPatientRecordsPage />}
+        />
+        <Route
+          path="/doctor/approve-appointment"
+          element={<DoctorApproveAppointmentPage />}
+        />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

@@ -8,6 +8,8 @@
 -- Or this script will fail silently (ON CONFLICT DO NOTHING)
 -- ============================================
 
+SET search_path TO public;
+
 -- Step 1: Create Wards
 INSERT INTO wards (name) VALUES 
   ('Ward A'),
