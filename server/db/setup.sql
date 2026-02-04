@@ -25,6 +25,9 @@ CREATE DATABASE healthcare_db;
 -- 4. Fix any patient assignment issues (ensures correct data)
 \i db/migrations/004_fix_patient_assignment.sql
 
+-- 5. Add patient details (date_of_birth, gender, blood_type)
+\i db/migrations/005_add_patient_details.sql
+
 -- ============================================
 -- Setup Complete!
 -- ============================================

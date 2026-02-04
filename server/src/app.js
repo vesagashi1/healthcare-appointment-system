@@ -10,6 +10,8 @@ const wardRoutes = require("./routes/ward.routes");
 const nurseRoutes = require("./routes/nurse.routes");
 const adminRoutes = require("./routes/admin.routes");
 const caregiverRoutes = require("./routes/caregiver.routes");
+const exportRoutes = require("./routes/export.routes");
+const importRoutes = require("./routes/import.routes");
 
 const app = express();
 
@@ -32,6 +34,8 @@ app.use("/api/wards", wardRoutes);
 app.use("/api/nurses", nurseRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/caregivers", caregiverRoutes);
+app.use("/api/export", exportRoutes);
+app.use("/api/import", importRoutes);
 
 
 
