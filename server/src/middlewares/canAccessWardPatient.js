@@ -10,6 +10,20 @@ module.exports = async (req, res, next) => {
 
     const patientId = parseInt(req.params.patientId, 10);
 
+    // Get doctor's ID from doctors table (not user.id)
+    const doctorResult = await pool.query(
+      `SELECT id FROM doctors WHERE user_id = $1`,
+      [user.id]
+    );
+
+    if (doctorResult.rowCount === 0) {
+      return res.status(403).json({
+        message: "Doctor record not found",
+      });
+    }
+
+    const doctorId = doctorResult.rows[0].id;
+
     const result = await pool.query(
       `
       SELECT 1
@@ -18,7 +32,7 @@ module.exports = async (req, res, next) => {
       WHERE p.id = $1
         AND dw.doctor_id = $2
       `,
-      [patientId, user.id]
+      [patientId, doctorId]
     );
 
     if (result.rowCount === 0) {
