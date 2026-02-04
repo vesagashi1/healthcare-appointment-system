@@ -4,6 +4,10 @@ const requireRole = require("../middlewares/role.middleware");
 
 const router = express.Router();
 
+router.get("/public", (req, res) => {
+  res.json({ message: "API is reachable" });
+});
+
 router.get("/protected", authMiddleware, (req, res) => {
   res.json({
     message: "You have access to protected route",
@@ -20,7 +24,7 @@ router.get(
       message: "Doctor access granted",
       user: req.user,
     });
-  }
+  },
 );
 
 router.get(
@@ -32,7 +36,7 @@ router.get(
       message: "Patient access granted",
       user: req.user,
     });
-  }
+  },
 );
 
 module.exports = router;

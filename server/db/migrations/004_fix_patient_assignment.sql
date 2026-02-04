@@ -7,6 +7,8 @@
 -- This ensures correct patient assignments
 -- ============================================
 
+SET search_path TO public;
+
 -- First, let's see what's currently in patient_assignments
 SELECT 
   pa.id,

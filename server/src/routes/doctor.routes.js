@@ -6,6 +6,50 @@ const pool = require("../config/db");
 const router = express.Router();
 
 /**
+ * GET current doctor profile
+ * Returns doctor row joined with user info for the logged-in doctor
+ */
+router.get(
+  "/me",
+  authMiddleware,
+  async (req, res) => {
+    try {
+      const userId = req.user.id;
+      const role = req.user.role;
+
+      if (role !== "doctor") {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      const result = await pool.query(
+        `
+        SELECT
+          d.id,
+          d.specialization,
+          u.id as user_id,
+          u.name,
+          u.email,
+          u.created_at
+        FROM doctors d
+        JOIN users u ON d.user_id = u.id
+        WHERE d.user_id = $1
+        `,
+        [userId]
+      );
+
+      if (result.rowCount === 0) {
+        return res.status(404).json({ message: "Doctor profile not found" });
+      }
+
+      return res.json({ message: "Doctor profile retrieved", doctor: result.rows[0] });
+    } catch (err) {
+      console.error("GET DOCTOR ME ERROR:", err);
+      return res.status(500).json({ message: "Server error" });
+    }
+  }
+);
+
+/**
  * GET all doctors
  * List all doctors with optional specialization filter
  */

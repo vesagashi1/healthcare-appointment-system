@@ -1,0 +1,257 @@
+.headerRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.refreshBtn {
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.92);
+  padding: 10px 14px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 700;
+  transition:
+    transform 0.15s ease,
+    background 0.15s ease;
+  white-space: nowrap;
+}
+
+.refreshBtn:hover {
+  background: rgba(255, 255, 255, 0.18);
+  transform: translateY(-1px);
+}
+
+.refreshBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.toolsCard {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  margin-bottom: 16px;
+}
+
+.toast {
+  margin: 10px 0 16px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(0, 0, 0, 0.22);
+  color: rgba(255, 255, 255, 0.92);
+  font-weight: 700;
+}
+
+.searchField {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+}
+
+.searchField span {
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.searchField input {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(0, 0, 0, 0.22);
+  color: rgba(255, 255, 255, 0.92);
+  padding: 12px 12px;
+  border-radius: 12px;
+  outline: none;
+}
+
+.searchField input::placeholder {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.meta {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.metaLabel {
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.metaValue {
+  color: rgba(255, 255, 255, 0.95);
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.tableCard {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 16px;
+  overflow: hidden;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.22);
+}
+
+.tableHeader {
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.tableTitle {
+  color: rgba(255, 255, 255, 0.95);
+  font-weight: 900;
+}
+
+.count {
+  color: rgba(255, 255, 255, 0.75);
+  font-weight: 800;
+}
+
+.tableWrap {
+  overflow: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table thead th {
+  text-align: left;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.75);
+  padding: 14px 16px;
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.table tbody td {
+  padding: 14px 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  vertical-align: middle;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.table tbody tr:hover {
+  background: rgba(0, 0, 0, 0.14);
+}
+
+.sortBtn {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sortIcon {
+  opacity: 0.85;
+  font-size: 10px;
+}
+
+.idPill {
+  display: inline-block;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  font-weight: 900;
+}
+
+.patientCell {
+  display: grid;
+  gap: 4px;
+}
+
+.patientName {
+  font-weight: 900;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.patientMeta {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.mono {
+  font-variant-numeric: tabular-nums;
+}
+
+.rowActions {
+  display: inline-flex;
+  gap: 10px;
+}
+
+.primaryBtn,
+.secondaryBtn {
+  appearance: none;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 10px;
+  font-weight: 900;
+  cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    background 0.15s ease;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.primaryBtn {
+  background: linear-gradient(
+    135deg,
+    rgba(46, 213, 115, 0.26),
+    rgba(30, 144, 255, 0.16)
+  );
+}
+
+.secondaryBtn {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.primaryBtn:hover,
+.secondaryBtn:hover {
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.14);
+}
+
+@media (max-width: 760px) {
+  .headerRow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .toolsCard {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
