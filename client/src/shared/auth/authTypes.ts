@@ -9,4 +9,5 @@ export type Role =
 export type AuthUser = {
   id: number;
   role: Role;
+  name?: string;
 };

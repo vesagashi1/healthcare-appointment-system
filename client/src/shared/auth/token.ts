@@ -1,6 +1,7 @@
 type JwtPayload = {
   id?: number;
   role?: string;
+  name?: string;
   exp?: number;
 };
 

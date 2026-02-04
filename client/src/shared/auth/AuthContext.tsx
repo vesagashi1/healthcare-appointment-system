@@ -30,7 +30,7 @@ function parseUserFromToken(token: string | null): AuthUser | null {
   if (isJwtExpired(token)) return null;
   const payload = decodeJwt(token);
   if (!payload?.id || !payload?.role) return null;
-  return { id: payload.id, role: payload.role };
+  return { id: payload.id, role: payload.role, name: payload.name };
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {

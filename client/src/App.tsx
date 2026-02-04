@@ -6,6 +6,8 @@ import { ProtectedRoute } from "./shared/auth/ProtectedRoute";
 import { DoctorDashboardPage } from "./pages/doctor/DoctorDashboardPage";
 import { DoctorPatientRecordsPage } from "./pages/doctor/DoctorPatientRecordsPage";
 import { DoctorApproveAppointmentPage } from "./pages/doctor/DoctorApproveAppointmentPage";
+import { DoctorAppointmentsPage } from "./pages/doctor/DoctorAppointmentsPage";
+import { DoctorPatientsPage } from "./pages/doctor/DoctorPatientsPage";
 
 export default function App() {
   return (
@@ -16,6 +18,11 @@ export default function App() {
 
       <Route element={<ProtectedRoute requireRole="doctor" />}>
         <Route path="/doctor" element={<DoctorDashboardPage />} />
+        <Route
+          path="/doctor/appointments"
+          element={<DoctorAppointmentsPage />}
+        />
+        <Route path="/doctor/patients" element={<DoctorPatientsPage />} />
         <Route
           path="/doctor/patient-records"
           element={<DoctorPatientRecordsPage />}

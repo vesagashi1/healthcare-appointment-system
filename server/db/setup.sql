@@ -22,6 +22,9 @@ SET search_path TO public;
 -- 2. Seed roles and permissions (RBAC)
 \i db/migrations/002_seed_rbac.sql
 
+-- 2.5 Fix schema FK mismatches (required for doctor/patient pages)
+\i db/migrations/006_fix_foreign_keys.sql
+
 -- 3. Create test data (wards, doctor records, patient records, assignments)
 --    This creates test users relationships for development/testing
 \i db/migrations/003_test_data.sql

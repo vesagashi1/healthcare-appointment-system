@@ -7,6 +7,8 @@
     "dev": "nodemon src/app.js",
     "start": "node src/app.js",
     "db:setup": "psql -U postgres -d postgres -f db/setup.sql",
+    "db:seed": "node scripts/seed.js",
+    "db:seed:psql": "psql -U postgres -d healthcare_db -f db/seed.sql",
     "db:reset": "dropdb --if-exists healthcare_db && npm run db:setup"
   },
   "keywords": [],

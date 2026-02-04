@@ -1,4 +1,7 @@
-require("dotenv").config(); 
+const path = require("path");
+require("dotenv").config({
+  path: path.resolve(__dirname, "..", ".env"),
+});
 
 const express = require("express");
 const cors = require("cors");
@@ -10,6 +13,7 @@ const wardRoutes = require("./routes/ward.routes");
 const nurseRoutes = require("./routes/nurse.routes");
 const adminRoutes = require("./routes/admin.routes");
 const caregiverRoutes = require("./routes/caregiver.routes");
+const dashboardRoutes = require("./routes/dashboard.routes");
 const exportRoutes = require("./routes/export.routes");
 const importRoutes = require("./routes/import.routes");
 
@@ -34,6 +38,7 @@ app.use("/api/wards", wardRoutes);
 app.use("/api/nurses", nurseRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/caregivers", caregiverRoutes);
+app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/export", exportRoutes);
 app.use("/api/import", importRoutes);
 
