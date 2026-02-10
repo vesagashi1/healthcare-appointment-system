@@ -10,6 +10,70 @@ const pool = require("../config/db");
 const router = express.Router();
 
 
+/**
+ * POST create record for my profile
+ * Create a record for current user's patient profile
+ */
+router.post(
+  "/my-profile/records",
+  authMiddleware,
+  hasPermission("CREATE_PATIENT_RECORD"),
+  async (req, res) => {
+    try {
+      const { record_type, content } = req.body;
+      const userId = req.user.id;
+      const role = req.user.role;
+
+      if (!record_type || !content) {
+        return res.status(400).json({
+          message: "record_type and content are required",
+        });
+      }
+
+      const patientResult = await pool.query(
+        "SELECT user_id FROM patients WHERE user_id = $1",
+        [userId]
+      );
+
+      if (patientResult.rowCount === 0 && role === "patient") {
+        return res.status(404).json({ message: "Patient profile not found" });
+      }
+
+      const patientUserId = role === "patient" ? userId : null;
+      
+      if (!patientUserId) {
+        return res.status(400).json({
+          message: "Please specify patient_id when creating records as admin/doctor",
+        });
+      }
+
+      const result = await pool.query(
+        `
+        INSERT INTO patient_records
+          (patient_id, created_by, record_type, content)
+        VALUES ($1, $2, $3, $4)
+        RETURNING *
+        `,
+        [patientUserId, userId, record_type, content]
+      );
+
+      await auditLog({
+        req,
+        action: "CREATE_PATIENT_RECORD",
+        patientId: patientUserId,
+      });
+
+      res.status(201).json({
+        message: "Medical record created",
+        record: result.rows[0],
+      });
+    } catch (err) {
+      console.error("CREATE MY RECORD ERROR:", err);
+      res.status(500).json({ message: "Server error" });
+    }
+  }
+);
+
 router.post(
   "/:patientId/records",
   authMiddleware,
@@ -27,6 +91,17 @@ router.post(
       });
     }
 
+    const patientCheck = await pool.query(
+      "SELECT user_id FROM patients WHERE id = $1",
+      [patientId]
+    );
+
+    if (patientCheck.rowCount === 0) {
+      return res.status(404).json({ message: "Patient not found" });
+    }
+
+    const patientUserId = patientCheck.rows[0].user_id;
+
     const result = await pool.query(
       `
       INSERT INTO patient_records
@@ -34,13 +109,13 @@ router.post(
       VALUES ($1, $2, $3, $4)
       RETURNING *
       `,
-      [patientId, createdBy, record_type, content]
+      [patientUserId, createdBy, record_type, content]
     );
 
     await auditLog({
       req,
       action: "CREATE_PATIENT_RECORD",
-      patientId,
+      patientId: patientUserId,
     });
 
     res.status(201).json({
@@ -62,7 +137,6 @@ router.get(
       const { ward_id, name, email } = req.query;
       const role = req.user.role;
 
-      // Only admin, doctors, and nurses can list all patients
       if (!["admin", "doctor", "nurse"].includes(role)) {
         return res.status(403).json({
           message: "Not authorized to view patient list",
@@ -131,7 +205,6 @@ router.get(
     try {
       const { patientId } = req.params;
 
-      // Get patient basic info
       const patientResult = await pool.query(
         `
         SELECT 
@@ -156,7 +229,6 @@ router.get(
 
       const patient = patientResult.rows[0];
 
-      // Get assigned staff (doctors and nurses)
       const staffResult = await pool.query(
         `
         SELECT 
@@ -172,7 +244,6 @@ router.get(
         [patientId]
       );
 
-      // Get caregivers
       const caregiversResult = await pool.query(
         `
         SELECT 
@@ -256,6 +327,87 @@ router.get(
 );
 
 /**
+ * GET my records
+ * Get current patient's own records
+ */
+router.get(
+  "/my-profile/records",
+  authMiddleware,
+  hasPermission("VIEW_PATIENT_RECORD"),
+  async (req, res) => {
+    try {
+      const userId = req.user.id;
+      const role = req.user.role;
+
+      let query = `
+        SELECT 
+          pr.*,
+          u.name as patient_name,
+          u.email as patient_email,
+          creator.name as created_by_name,
+          original.id as original_record_id,
+          original.content as original_content
+        FROM patient_records pr
+        JOIN users u ON pr.patient_id = u.id
+        LEFT JOIN users creator ON pr.created_by = creator.id
+        LEFT JOIN patient_records original ON pr.corrected_record_id = original.id
+        WHERE 1=1
+      `;
+      const values = [];
+      let paramCount = 0;
+
+      if (role === "patient") {
+        const patientResult = await pool.query(
+          `
+          SELECT id
+          FROM patients
+          WHERE user_id = $1
+          `,
+          [userId]
+        );
+
+        if (patientResult.rowCount === 0) {
+          return res.status(404).json({ message: "Patient profile not found" });
+        }
+
+        query += ` AND pr.patient_id = $${++paramCount} AND pr.record_type = 'patient_note'`;
+        values.push(userId);
+      } else if (role === "nurse" || role === "caregiver") {
+        const patientResult = await pool.query(
+          `
+          SELECT id
+          FROM patients
+          WHERE user_id = $1
+          `,
+          [userId]
+        );
+
+        if (patientResult.rowCount > 0) {
+          query += ` AND pr.patient_id = $${++paramCount} AND pr.record_type IN ('nursing_note', 'patient_note')`;
+          values.push(userId);
+        } else {
+          query += ` AND pr.record_type IN ('nursing_note', 'patient_note')`;
+        }
+      } else if (role === "admin" || role === "doctor") {
+      }
+
+      query += ` ORDER BY pr.created_at DESC`;
+
+      const result = await pool.query(query, values);
+
+      res.json({
+        message: "Patient medical records",
+        records: result.rows,
+        count: result.rowCount,
+      });
+    } catch (err) {
+      console.error("GET MY RECORDS ERROR:", err);
+      res.status(500).json({ message: "Server error" });
+    }
+  }
+);
+
+/**
  * PATCH update patient
  * Update patient information (admin only)
  */
@@ -274,7 +426,6 @@ router.patch(
         });
       }
 
-      // Check if patient exists
       const check = await pool.query(
         `SELECT id FROM patients WHERE id = $1`,
         [patientId]
@@ -284,7 +435,6 @@ router.patch(
         return res.status(404).json({ message: "Patient not found" });
       }
 
-      // Update ward if provided
       if (ward_id !== undefined) {
         await pool.query(
           `UPDATE patients SET ward_id = $1 WHERE id = $2`,
@@ -292,7 +442,6 @@ router.patch(
         );
       }
 
-      // Get updated patient
       const result = await pool.query(
         `
         SELECT 
@@ -328,39 +477,187 @@ router.get(
   canAccessWardPatient,
   canAccessPatient,
   async (req, res) => {
-    const { patientId } = req.params;
-    const { role } = req.user;
+    try {
+      const { patientId } = req.params;
+      const { role } = req.user;
 
-    let query = `
-      SELECT *
-      FROM patient_records
-      WHERE patient_id = $1
-    `;
-    const values = [patientId];
+      const patientCheck = await pool.query(
+        "SELECT user_id FROM patients WHERE id = $1",
+        [patientId]
+      );
 
-    if (role === "patient") {
-      query += ` AND record_type = 'patient_note'`;
+      if (patientCheck.rowCount === 0) {
+        return res.status(404).json({ message: "Patient not found" });
+      }
+
+      const patientUserId = patientCheck.rows[0].user_id;
+
+      let query = `
+        SELECT 
+          pr.*,
+          u.name as patient_name,
+          u.email as patient_email,
+          creator.name as creator_name,
+          creator.email as creator_email,
+          CASE WHEN pr.record_type = 'void' THEN true ELSE false END as is_void
+        FROM patient_records pr
+        JOIN users u ON pr.patient_id = u.id
+        LEFT JOIN users creator ON pr.created_by = creator.id
+        WHERE pr.patient_id = $1
+      `;
+      const values = [patientUserId];
+
+      if (role === "patient") {
+        query += ` AND pr.record_type = 'patient_note'`;
+      }
+
+      if (role === "nurse" || role === "caregiver") {
+        query += ` AND pr.record_type IN ('nursing_note', 'patient_note')`;
+      }
+
+      query += ` ORDER BY pr.created_at DESC`;
+
+      const result = await pool.query(query, values);
+
+      res.json({
+        message: "Patient medical records",
+        patientId,
+        records: result.rows,
+        count: result.rowCount,
+      });
+    } catch (err) {
+      console.error("GET PATIENT RECORDS ERROR:", err);
+      res.status(500).json({ message: "Server error" });
     }
+  }
+);
 
-    if (role === "nurse" || role === "caregiver") {
-      query += ` AND record_type IN ('nursing_note', 'patient_note')`;
+/**
+ * PATCH correct patient record
+ * Medical records are immutable, so we create a correction record instead
+ * (admin, doctor only)
+ */
+router.patch(
+  "/records/:recordId",
+  authMiddleware,
+  hasPermission("CREATE_PATIENT_RECORD"),
+  async (req, res) => {
+    try {
+      const { recordId } = req.params;
+      const { record_type, content } = req.body;
+      const role = req.user.role;
+
+      if (!["admin", "doctor"].includes(role)) {
+        return res.status(403).json({
+          message: "Only admin and doctor can correct records",
+        });
+      }
+
+      if (!record_type || !content) {
+        return res.status(400).json({
+          message: "record_type and content are required",
+        });
+      }
+
+      const originalRecord = await pool.query(
+        "SELECT id, patient_id, record_type, content FROM patient_records WHERE id = $1",
+        [recordId]
+      );
+
+      if (originalRecord.rowCount === 0) {
+        return res.status(404).json({ message: "Record not found" });
+      }
+
+      const original = originalRecord.rows[0];
+      const createdBy = req.user.id;
+
+      const result = await pool.query(
+        `
+        INSERT INTO patient_records
+          (patient_id, created_by, record_type, content, corrected_record_id)
+        VALUES ($1, $2, $3, $4, $5)
+        RETURNING *
+        `,
+        [original.patient_id, createdBy, record_type, content, original.id]
+      );
+
+      await auditLog({
+        req,
+        action: "CORRECT_PATIENT_RECORD",
+        patientId: original.patient_id,
+      });
+
+      res.json({
+        message: "Record correction created successfully",
+        record: result.rows[0],
+        original_record_id: original.id,
+      });
+    } catch (err) {
+      console.error("CORRECT RECORD ERROR:", err);
+      res.status(500).json({ message: "Server error: " + err.message });
     }
+  }
+);
 
-    query += ` ORDER BY created_at DESC`;
+/**
+ * DELETE patient record
+ * Medical records are immutable, so deletion is not allowed
+ * Instead, we can mark it as voided by creating a void record
+ * (admin, doctor only)
+ */
+router.delete(
+  "/records/:recordId",
+  authMiddleware,
+  hasPermission("CREATE_PATIENT_RECORD"),
+  async (req, res) => {
+    try {
+      const { recordId } = req.params;
+      const role = req.user.role;
 
-    const result = await pool.query(query, values);
+      if (!["admin", "doctor"].includes(role)) {
+        return res.status(403).json({
+          message: "Only admin and doctor can void records",
+        });
+      }
 
-    await auditLog({
-      req,
-      action: "VIEW_PATIENT_RECORDS",
-      patientId,
-    });
+      const check = await pool.query(
+        "SELECT id, patient_id FROM patient_records WHERE id = $1",
+        [recordId]
+      );
 
-    res.json({
-      message: "Patient medical records",
-      patientId,
-      records: result.rows,
-    });
+      if (check.rowCount === 0) {
+        return res.status(404).json({ message: "Record not found" });
+      }
+
+      const createdBy = req.user.id;
+      await pool.query(
+        `
+        INSERT INTO patient_records
+          (patient_id, created_by, record_type, content, corrected_record_id)
+        VALUES ($1, $2, $3, $4, $5)
+        `,
+        [
+          check.rows[0].patient_id,
+          createdBy,
+          "void",
+          `Original record #${recordId} has been voided`,
+          recordId,
+        ]
+      );
+
+      await auditLog({
+        req,
+        action: "VOID_PATIENT_RECORD",
+        patientId: check.rows[0].patient_id,
+      });
+
+      res.json({
+        message: "Record voided successfully (original record preserved for audit)",
+      });
+    } catch (err) {
+      console.error("VOID RECORD ERROR:", err);
+      res.status(500).json({ message: "Server error: " + err.message });
+    }
   }
 );
 
