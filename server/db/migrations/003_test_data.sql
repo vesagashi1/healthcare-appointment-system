@@ -1,11 +1,8 @@
 -- ============================================
 -- Test Data Setup Script
--- Run this AFTER registering users via API
 -- 
--- IMPORTANT: Users must be registered first via:
--- POST /api/auth/register (for each role)
--- 
--- Or this script will fail silently (ON CONFLICT DO NOTHING)
+-- NOTE: Users are now created automatically in migration 002.5_seed_users.sql
+-- This script creates relationships, wards, appointments, and records
 -- ============================================
 
 SET search_path TO public;
