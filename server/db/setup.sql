@@ -15,11 +15,20 @@ CREATE DATABASE healthcare_db;
 -- 1. Create all tables and schema
 \i db/migrations/001_initial_schema.sql
 
+-- 001_initial_schema.sql comes from a pg_dump and explicitly empties search_path.
+-- Reset it so subsequent migrations can use unqualified table names.
+SET search_path TO public;
+
 -- 2. Seed roles and permissions (RBAC)
 \i db/migrations/002_seed_rbac.sql
 
+-- 2.5 Seed test users with hashed passwords
+--    Creates: admin@test.com, doctor@test.com, patient@test.com, nurse@test.com, caregiver@test.com
+--    All passwords: admin123, doctor123, patient123, nurse123, caregiver123
+\i db/migrations/002.5_seed_users.sql
+
 -- 3. Create test data (wards, doctor records, patient records, assignments)
---    This creates test users relationships for development/testing
+--    This creates relationships and test data for development/testing
 \i db/migrations/003_test_data.sql
 
 -- 4. Fix any patient assignment issues (ensures correct data)
@@ -32,12 +41,14 @@ CREATE DATABASE healthcare_db;
 -- Setup Complete!
 -- ============================================
 -- 
--- Test users created (via API registration):
+-- Test users created automatically:
 -- - admin@test.com / admin123
 -- - doctor@test.com / doctor123
 -- - patient@test.com / patient123
 -- - nurse@test.com / nurse123
 -- - caregiver@test.com / caregiver123
 --
--- Note: Users must be registered via API first before running migrations 003 and 004
+-- All test data (wards, appointments, records, assignments) has been created.
+-- You can now login with any of the above accounts and start testing!
+--
 -- See SETUP.md for complete setup instructions

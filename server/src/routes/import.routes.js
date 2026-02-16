@@ -195,6 +195,33 @@ router.post(
           let userId;
           if (userCheck.rowCount > 0) {
             userId = userCheck.rows[0].id;
+            
+            // Check if patient record already exists for this user
+            const patientCheck = await pool.query(
+              "SELECT id FROM patients WHERE user_id = $1",
+              [userId]
+            );
+            
+            if (patientCheck.rowCount > 0) {
+              // Patient already exists, update it instead
+              const wardId = row.ward_id ? parseInt(row.ward_id) : null;
+              const dateOfBirth = row.date_of_birth || null;
+              const gender = row.gender || null;
+              const bloodType = row.blood_type || null;
+              
+              await pool.query(
+                "UPDATE patients SET ward_id = COALESCE($1, ward_id), date_of_birth = COALESCE($2, date_of_birth), gender = COALESCE($3, gender), blood_type = COALESCE($4, blood_type) WHERE user_id = $5",
+                [wardId, dateOfBirth, gender, bloodType, userId]
+              );
+              
+              results.success.push({
+                row: i + 1,
+                patient_id: patientCheck.rows[0].id,
+                name: row.name,
+                action: "updated"
+              });
+              continue;
+            }
           } else {
             // Hash password
             const hashedPassword = await bcrypt.hash("temp_password_123", 10);
@@ -221,23 +248,33 @@ router.post(
             }
           }
 
-          // Create patient record
-          const wardId = row.ward_id || null;
+          // Create patient record (use ON CONFLICT to handle edge cases)
+          const wardId = row.ward_id ? parseInt(row.ward_id) : null;
           const dateOfBirth = row.date_of_birth || null;
           const gender = row.gender || null;
           const bloodType = row.blood_type || null;
           
           const patientResult = await pool.query(
-            "INSERT INTO patients (user_id, ward_id, date_of_birth, gender, blood_type) VALUES ($1, $2, $3, $4, $5) RETURNING id",
+            `INSERT INTO patients (user_id, ward_id, date_of_birth, gender, blood_type) 
+             VALUES ($1, $2, $3, $4, $5) 
+             ON CONFLICT (user_id) 
+             DO UPDATE SET 
+               ward_id = COALESCE(EXCLUDED.ward_id, patients.ward_id),
+               date_of_birth = COALESCE(EXCLUDED.date_of_birth, patients.date_of_birth),
+               gender = COALESCE(EXCLUDED.gender, patients.gender),
+               blood_type = COALESCE(EXCLUDED.blood_type, patients.blood_type)
+             RETURNING id`,
             [userId, wardId, dateOfBirth, gender, bloodType]
           );
 
           results.success.push({
             row: i + 1,
             patient_id: patientResult.rows[0].id,
-            name: row.name
+            name: row.name,
+            action: "created"
           });
         } catch (err) {
+          console.error(`Error importing row ${i + 1}:`, err);
           results.errors.push({
             row: i + 1,
             data: row,
@@ -249,13 +286,18 @@ router.post(
       // Clean up uploaded file
       fs.unlinkSync(req.file.path);
 
-      res.json({
+      const responseData = {
         message: "Import completed",
         total: data.length,
         successful: results.success.length,
         failed: results.errors.length,
         results: results
-      });
+      };
+      
+      console.log("Import response:", JSON.stringify(responseData, null, 2));
+      console.log(`Success count: ${results.success.length}, Error count: ${results.errors.length}`);
+
+      res.json(responseData);
     } catch (err) {
       console.error("IMPORT PATIENTS ERROR:", err);
       if (req.file) {

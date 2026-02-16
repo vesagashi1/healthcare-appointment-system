@@ -147,3 +147,5 @@ test_files/*.csv
 test_files/*.xlsx
 test_files/*.json
 !test_files/README.md
+*.md
+.DS_Store
