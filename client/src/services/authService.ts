@@ -1,4 +1,5 @@
 import api from './api';
+import { getAccessToken, setAccessToken } from './api';
 
 export interface User {
   id: number;
@@ -23,7 +24,7 @@ export const authService = {
   login: async (credentials: LoginCredentials) => {
     const response = await api.post('/auth/login', credentials);
     const { token, user } = response.data;
-    localStorage.setItem('token', token);
+    setAccessToken(token);
     localStorage.setItem('user', JSON.stringify(user));
     return { token, user };
   },
@@ -33,8 +34,19 @@ export const authService = {
     return response.data;
   },
 
+  refresh: async () => {
+    const response = await api.post('/auth/refresh');
+    const { token, user } = response.data;
+    setAccessToken(token);
+    if (user) {
+      localStorage.setItem('user', JSON.stringify(user));
+    }
+    return { token, user };
+  },
+
   logout: () => {
-    localStorage.removeItem('token');
+    api.post('/auth/logout').catch(() => undefined);
+    setAccessToken(null);
     localStorage.removeItem('user');
   },
 
@@ -44,10 +56,10 @@ export const authService = {
   },
 
   getToken: (): string | null => {
-    return localStorage.getItem('token');
+    return getAccessToken();
   },
 
   isAuthenticated: (): boolean => {
-    return !!localStorage.getItem('token');
+    return !!getAccessToken() || !!localStorage.getItem('user');
   },
 };

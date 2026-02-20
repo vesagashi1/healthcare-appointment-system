@@ -17,6 +17,9 @@ CREATE DATABASE healthcare_db;
 -- 2. Seed roles and permissions (RBAC)
 \i db/migrations/002_seed_rbac.sql
 
+-- 3. Add refresh token persistence table
+\i db/migrations/006_add_refresh_tokens.sql
+
 -- ============================================
 -- Setup Complete (without test data)
 -- ============================================
