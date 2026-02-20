@@ -37,6 +37,9 @@ SET search_path TO public;
 -- 5. Add patient details (date_of_birth, gender, blood_type)
 \i db/migrations/005_add_patient_details.sql
 
+-- 6. Add refresh token persistence table
+\i db/migrations/006_add_refresh_tokens.sql
+
 -- ============================================
 -- Setup Complete!
 -- ============================================
