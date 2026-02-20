@@ -99,7 +99,7 @@ const PatientRecordsPage = () => {
 
     try {
       if (editingRecord) {
-        const response = await api.patch(`/patients/records/${editingRecord.id}`, {
+        await api.patch(`/patients/records/${editingRecord.id}`, {
           record_type: formData.record_type,
           content: formData.content,
         });

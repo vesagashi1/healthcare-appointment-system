@@ -5,6 +5,46 @@ const pool = require("../config/db");
 
 const router = express.Router();
 
+const ensureDoctorScope = async (req, res, next) => {
+  try {
+    const requestedDoctorId = parseInt(req.params.id, 10);
+
+    if (Number.isNaN(requestedDoctorId)) {
+      return res.status(400).json({ message: "Invalid doctor id" });
+    }
+
+    if (req.user.role === "admin") {
+      return next();
+    }
+
+    if (req.user.role !== "doctor") {
+      return res.status(403).json({
+        message: "Not authorized to access this doctor's data",
+      });
+    }
+
+    const doctorResult = await pool.query(
+      `SELECT id FROM doctors WHERE user_id = $1`,
+      [req.user.id]
+    );
+
+    if (doctorResult.rowCount === 0) {
+      return res.status(403).json({ message: "Doctor profile not found" });
+    }
+
+    if (doctorResult.rows[0].id !== requestedDoctorId) {
+      return res.status(403).json({
+        message: "Not authorized to access this doctor's data",
+      });
+    }
+
+    return next();
+  } catch (err) {
+    console.error("DOCTOR SCOPE ERROR:", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
 /**
  * GET all doctors
  * List all doctors with optional specialization filter
@@ -132,6 +172,7 @@ router.get(
   "/:id/appointments",
   authMiddleware,
   hasPermission("VIEW_APPOINTMENT"),
+  ensureDoctorScope,
   async (req, res) => {
     try {
       const doctorId = req.params.id;
@@ -194,6 +235,7 @@ router.get(
   "/:id/patients",
   authMiddleware,
   hasPermission("VIEW_PATIENT_RECORD"),
+  ensureDoctorScope,
   async (req, res) => {
     try {
       const doctorId = req.params.id;

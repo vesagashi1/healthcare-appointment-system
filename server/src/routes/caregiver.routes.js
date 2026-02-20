@@ -32,7 +32,7 @@ router.post(
 
       // Check if patient exists
       const patientCheck = await pool.query(
-        `SELECT id FROM patients WHERE id = $1`,
+        `SELECT id, user_id FROM patients WHERE id = $1`,
         [patient_id]
       );
 
@@ -40,13 +40,15 @@ router.post(
         return res.status(404).json({ message: "Patient not found" });
       }
 
+      const patientUserId = patientCheck.rows[0].user_id;
+
       // Check if link already exists
       const existing = await pool.query(
         `
         SELECT id FROM patient_caregivers
         WHERE patient_id = $1 AND caregiver_id = $2
         `,
-        [patient_id, caregiverId]
+        [patientUserId, caregiverId]
       );
 
       if (existing.rowCount > 0) {
@@ -62,7 +64,7 @@ router.post(
         VALUES ($1, $2, $3)
         RETURNING *
         `,
-        [patient_id, caregiverId, relationship]
+        [patientUserId, caregiverId, relationship]
       );
 
       res.status(201).json({
@@ -106,7 +108,7 @@ router.get(
           pc.relationship,
           pc.created_at as linked_at
         FROM patient_caregivers pc
-        JOIN patients p ON pc.patient_id = p.id
+        JOIN patients p ON pc.patient_id = p.user_id
         JOIN users u ON p.user_id = u.id
         LEFT JOIN wards w ON p.ward_id = w.id
         WHERE pc.caregiver_id = $1
@@ -146,13 +148,24 @@ router.delete(
         });
       }
 
+      const patientCheck = await pool.query(
+        `SELECT user_id FROM patients WHERE id = $1`,
+        [patientId]
+      );
+
+      if (patientCheck.rowCount === 0) {
+        return res.status(404).json({ message: "Patient not found" });
+      }
+
+      const patientUserId = patientCheck.rows[0].user_id;
+
       // Check if link exists
       const check = await pool.query(
         `
         SELECT id FROM patient_caregivers
         WHERE patient_id = $1 AND caregiver_id = $2
         `,
-        [patientId, caregiverId]
+        [patientUserId, caregiverId]
       );
 
       if (check.rowCount === 0) {
@@ -167,7 +180,7 @@ router.delete(
         DELETE FROM patient_caregivers
         WHERE patient_id = $1 AND caregiver_id = $2
         `,
-        [patientId, caregiverId]
+        [patientUserId, caregiverId]
       );
 
       res.json({

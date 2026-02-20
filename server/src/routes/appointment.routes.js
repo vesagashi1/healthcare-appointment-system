@@ -15,7 +15,7 @@ router.post(
   hasPermission("CREATE_APPOINTMENT"),
   async (req, res) => {
     const { doctor_id, appointment_date } = req.body;
-    const patient_id = req.user.id;
+    const patientUserId = req.user.id;
 
     if (!doctor_id || !appointment_date) {
       return res.status(400).json({
@@ -24,6 +24,19 @@ router.post(
     }
 
     try {
+      const patientLookup = await pool.query(
+        `SELECT id FROM patients WHERE user_id = $1`,
+        [patientUserId]
+      );
+
+      if (patientLookup.rowCount === 0) {
+        return res.status(404).json({
+          message: "Patient profile not found for current user",
+        });
+      }
+
+      const patient_id = patientLookup.rows[0].id;
+
       const result = await pool.query(
         `
         INSERT INTO appointments (doctor_id, patient_id, appointment_date)
@@ -166,6 +179,7 @@ router.get(
           u_doctor.name as doctor_name,
           u_doctor.email as doctor_email,
           p.id as patient_id,
+          p.user_id as patient_user_id,
           u_patient.name as patient_name,
           u_patient.email as patient_email
         FROM appointments a
@@ -185,7 +199,7 @@ router.get(
       const appointment = result.rows[0];
 
       // Check access permissions
-      if (role === "patient" && appointment.patient_id !== userId) {
+      if (role === "patient" && appointment.patient_user_id !== userId) {
         return res.status(403).json({
           message: "Not authorized to view this appointment",
         });

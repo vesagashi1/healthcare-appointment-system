@@ -9,7 +9,8 @@ interface User {
   id: number;
   name: string;
   email: string;
-  role: string;
+  role?: string;
+  roles?: string;
   created_at: string;
 }
 
@@ -179,8 +180,8 @@ const AdminPage = () => {
                         </div>
                       </td>
                       <td>
-                        <span className={`${styles.roleBadge} ${getRoleColor(user.role)}`}>
-                          {user.role}
+                        <span className={`${styles.roleBadge} ${getRoleColor(user.roles || user.role || '')}`}>
+                          {user.roles || user.role || 'unknown'}
                         </span>
                       </td>
                       <td className={styles.date}>

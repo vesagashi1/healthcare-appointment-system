@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api';
-import { Stethoscope, User } from 'lucide-react';
+import { Stethoscope } from 'lucide-react';
 
 interface Doctor {
   id: number;

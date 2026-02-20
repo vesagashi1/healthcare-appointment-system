@@ -6,6 +6,21 @@ const canAccessPatient = async (req, res, next) => {
     const role = req.user.role;
     const patientId = parseInt(req.params.patientId, 10);
 
+    if (Number.isNaN(patientId)) {
+      return res.status(400).json({ message: "Invalid patient id" });
+    }
+
+    const patientLookup = await pool.query(
+      `SELECT id, user_id FROM patients WHERE id = $1`,
+      [patientId]
+    );
+
+    if (patientLookup.rowCount === 0) {
+      return res.status(404).json({ message: "Patient not found" });
+    }
+
+    const patientUserId = patientLookup.rows[0].user_id;
+
     // Admin can access all patients
     if (role === "admin") {
       return next();
@@ -18,19 +33,31 @@ const canAccessPatient = async (req, res, next) => {
 
     // For patient role, check if they're accessing their own record
     if (role === "patient") {
-      // Get patient's user_id from patients table
-      const patientCheck = await pool.query(
-        `SELECT user_id FROM patients WHERE id = $1`,
-        [patientId]
-      );
-      
-      if (patientCheck.rowCount > 0 && patientCheck.rows[0].user_id === userId) {
+      if (patientUserId === userId) {
         return next();
       }
     }
 
-    // For nurse/caregiver, check assignments
-    if (role === "nurse" || role === "caregiver") {
+    // For nurse, check explicit nurse assignment
+    if (role === "nurse") {
+      const result = await pool.query(
+        `
+        SELECT 1
+        FROM patient_assignments
+        WHERE staff_id = $1
+          AND patient_id = $2
+          AND role = 'nurse'
+        `,
+        [userId, patientUserId]
+      );
+
+      if (result.rowCount > 0) {
+        return next();
+      }
+    }
+
+    // For caregiver, check caregiver links
+    if (role === "caregiver") {
       const result = await pool.query(
         `
         SELECT 1
@@ -38,7 +65,7 @@ const canAccessPatient = async (req, res, next) => {
         WHERE caregiver_id = $1
           AND patient_id = $2
         `,
-        [userId, patientId]
+        [userId, patientUserId]
       );
 
       if (result.rowCount > 0) {

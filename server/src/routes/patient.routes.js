@@ -228,6 +228,7 @@ router.get(
       }
 
       const patient = patientResult.rows[0];
+      const patientUserId = patient.user_id;
 
       const staffResult = await pool.query(
         `
@@ -241,7 +242,7 @@ router.get(
         JOIN users u ON pa.staff_id = u.id
         WHERE pa.patient_id = $1
         `,
-        [patientId]
+        [patientUserId]
       );
 
       const caregiversResult = await pool.query(
@@ -257,7 +258,7 @@ router.get(
         JOIN users u ON pc.caregiver_id = u.id
         WHERE pc.patient_id = $1
         `,
-        [patientId]
+        [patientUserId]
       );
 
       res.json({
@@ -373,20 +374,26 @@ router.get(
         query += ` AND pr.patient_id = $${++paramCount} AND pr.record_type = 'patient_note'`;
         values.push(userId);
       } else if (role === "nurse" || role === "caregiver") {
-        const patientResult = await pool.query(
-          `
-          SELECT id
-          FROM patients
-          WHERE user_id = $1
-          `,
-          [userId]
-        );
-
-        if (patientResult.rowCount > 0) {
-          query += ` AND pr.patient_id = $${++paramCount} AND pr.record_type IN ('nursing_note', 'patient_note')`;
+        if (role === "nurse") {
+          query += `
+            AND pr.patient_id IN (
+              SELECT pa.patient_id
+              FROM patient_assignments pa
+              WHERE pa.staff_id = $${++paramCount} AND pa.role = 'nurse'
+            )
+            AND pr.record_type IN ('nursing_note', 'patient_note')
+          `;
           values.push(userId);
         } else {
-          query += ` AND pr.record_type IN ('nursing_note', 'patient_note')`;
+          query += `
+            AND pr.patient_id IN (
+              SELECT pc.patient_id
+              FROM patient_caregivers pc
+              WHERE pc.caregiver_id = $${++paramCount}
+            )
+            AND pr.record_type IN ('nursing_note', 'patient_note')
+          `;
+          values.push(userId);
         }
       } else if (role === "admin" || role === "doctor") {
       }

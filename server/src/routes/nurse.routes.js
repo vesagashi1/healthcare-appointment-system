@@ -5,6 +5,26 @@ const pool = require("../config/db");
 
 const router = express.Router();
 
+const ensureNurseScope = (req, res, next) => {
+  const requestedNurseId = parseInt(req.params.id, 10);
+
+  if (Number.isNaN(requestedNurseId)) {
+    return res.status(400).json({ message: "Invalid nurse id" });
+  }
+
+  if (req.user.role === "admin") {
+    return next();
+  }
+
+  if (req.user.role !== "nurse" || req.user.id !== requestedNurseId) {
+    return res.status(403).json({
+      message: "Not authorized to access this nurse data",
+    });
+  }
+
+  return next();
+};
+
 /**
  * GET all nurses
  * List all nurses
@@ -51,6 +71,7 @@ router.get(
 router.get(
   "/:id",
   authMiddleware,
+  ensureNurseScope,
   async (req, res) => {
     try {
       const nurseId = req.params.id;
@@ -97,7 +118,7 @@ router.get(
         FROM patients p
         JOIN users u ON p.user_id = u.id
         LEFT JOIN wards w ON p.ward_id = w.id
-        JOIN patient_assignments pa ON p.id = pa.patient_id
+        JOIN patient_assignments pa ON p.user_id = pa.patient_id
         WHERE pa.staff_id = $1 AND pa.role = 'nurse'
         ORDER BY u.name ASC
         `,
@@ -131,6 +152,7 @@ router.get(
   "/:id/patients",
   authMiddleware,
   hasPermission("VIEW_PATIENT_RECORD"),
+  ensureNurseScope,
   async (req, res) => {
     try {
       const nurseId = req.params.id;
@@ -147,7 +169,7 @@ router.get(
         FROM patients p
         JOIN users u ON p.user_id = u.id
         LEFT JOIN wards w ON p.ward_id = w.id
-        JOIN patient_assignments pa ON p.id = pa.patient_id
+        JOIN patient_assignments pa ON p.user_id = pa.patient_id
         WHERE pa.staff_id = $1 AND pa.role = 'nurse'
         ORDER BY u.name ASC
         `,
@@ -173,6 +195,7 @@ router.get(
 router.get(
   "/:id/wards",
   authMiddleware,
+  ensureNurseScope,
   async (req, res) => {
     try {
       const nurseId = req.params.id;
