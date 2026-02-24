@@ -2,6 +2,7 @@ const express = require("express");
 const authMiddleware = require("../middlewares/auth.middleware");
 const hasPermission = require("../middlewares/permission.middleware");
 const pool = require("../config/db");
+const { createNotificationsForUsers } = require("../services/notification.service");
 
 const router = express.Router();
 
@@ -45,6 +46,27 @@ router.post(
         `,
         [doctor_id, patient_id, appointment_date]
       );
+
+      try {
+        const doctorLookup = await pool.query(
+          `SELECT user_id FROM doctors WHERE id = $1`,
+          [doctor_id]
+        );
+        const doctorUserId = doctorLookup.rows[0]?.user_id;
+        await createNotificationsForUsers([patientUserId, doctorUserId], {
+          type: "APPOINTMENT_CREATED",
+          title: "New Appointment",
+          message: `Appointment scheduled for ${appointment_date}`,
+          metadata: {
+            appointment_id: result.rows[0].id,
+            doctor_id,
+            patient_id,
+            status: result.rows[0].status,
+          },
+        });
+      } catch (notificationErr) {
+        console.error("APPOINTMENT CREATE NOTIFICATION ERROR:", notificationErr.message);
+      }
 
       return res.status(201).json({
         message: "Appointment created",
@@ -102,7 +124,6 @@ router.get(
       const values = [];
       let paramCount = 0;
 
-      // Role-based filtering
       if (role === "patient") {
         query += ` AND p.user_id = $${++paramCount}`;
         values.push(userId);
@@ -111,7 +132,6 @@ router.get(
         values.push(userId);
       }
 
-      // Optional filters
       if (patient_id) {
         query += ` AND p.id = $${++paramCount}`;
         values.push(patient_id);
@@ -198,7 +218,6 @@ router.get(
 
       const appointment = result.rows[0];
 
-      // Check access permissions
       if (role === "patient" && appointment.patient_user_id !== userId) {
         return res.status(403).json({
           message: "Not authorized to view this appointment",
@@ -308,12 +327,12 @@ router.patch(
     const userId = req.user.id;
 
     try {
-      // ensure doctor owns this appointment
       const check = await pool.query(
         `
-        SELECT a.*
+        SELECT a.*, p.user_id AS patient_user_id
         FROM appointments a
         JOIN doctors d ON d.id = a.doctor_id
+        JOIN patients p ON p.id = a.patient_id
         WHERE a.id = $1 AND d.user_id = $2
         `,
         [appointmentId, userId]
@@ -334,6 +353,21 @@ router.patch(
         `,
         [appointmentId]
       );
+
+      try {
+        const patientUserId = check.rows[0]?.patient_user_id;
+        await createNotificationsForUsers([patientUserId], {
+          type: "APPOINTMENT_APPROVED",
+          title: "Appointment Approved",
+          message: "Your appointment has been approved by the doctor",
+          metadata: {
+            appointment_id: result.rows[0].id,
+            status: result.rows[0].status,
+          },
+        });
+      } catch (notificationErr) {
+        console.error("APPOINTMENT APPROVE NOTIFICATION ERROR:", notificationErr.message);
+      }
 
       return res.json({
         message: "Appointment approved",
@@ -360,7 +394,6 @@ router.patch(
       const userId = req.user.id;
       const role = req.user.role;
 
-      // Check if appointment exists and user has access
       const check = await pool.query(
         `
         SELECT a.*, d.user_id as doctor_user_id, p.user_id as patient_user_id
@@ -378,7 +411,6 @@ router.patch(
 
       const appointment = check.rows[0];
 
-      // Check permissions
       if (role === "patient" && appointment.patient_user_id !== userId) {
         return res.status(403).json({
           message: "You can only cancel your own appointments",
@@ -391,7 +423,6 @@ router.patch(
         });
       }
 
-      // Don't allow canceling completed appointments
       if (appointment.status === "completed") {
         return res.status(400).json({
           message: "Cannot cancel a completed appointment",
@@ -407,6 +438,23 @@ router.patch(
         `,
         [appointmentId]
       );
+
+      try {
+        await createNotificationsForUsers(
+          [appointment.patient_user_id, appointment.doctor_user_id],
+          {
+            type: "APPOINTMENT_CANCELLED",
+            title: "Appointment Cancelled",
+            message: "An appointment has been cancelled",
+            metadata: {
+              appointment_id: result.rows[0].id,
+              status: result.rows[0].status,
+            },
+          }
+        );
+      } catch (notificationErr) {
+        console.error("APPOINTMENT CANCEL NOTIFICATION ERROR:", notificationErr.message);
+      }
 
       res.json({
         message: "Appointment cancelled successfully",
