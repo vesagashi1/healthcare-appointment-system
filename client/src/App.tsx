@@ -10,6 +10,8 @@ import DoctorsPage from './pages/DoctorsPage';
 import ExportImportPage from './pages/ExportImportPage';
 import PatientRecordsPage from './pages/PatientRecordsPage';
 import AdminPage from './pages/AdminPage';
+import CaregiverPatientsPage from './pages/CaregiverPatientsPage';
+import CaregiversPage from './pages/CaregiversPage';
 import Layout from './components/Layout';
 
 const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -105,6 +107,28 @@ function AppRoutes() {
           <PrivateRoute>
             <Layout>
               <AdminPage />
+            </Layout>
+          </PrivateRoute>
+        }
+      />
+
+      <Route
+        path="/caregiver/patients"
+        element={
+          <PrivateRoute>
+            <Layout>
+              <CaregiverPatientsPage />
+            </Layout>
+          </PrivateRoute>
+        }
+      />
+
+      <Route
+        path="/caregivers"
+        element={
+          <PrivateRoute>
+            <Layout>
+              <CaregiversPage />
             </Layout>
           </PrivateRoute>
         }

@@ -148,6 +148,18 @@ const login = async (req, res) => {
 
     const token = await issueSession(res, user);
 
+    const permissionsResult = await pool.query(
+      `
+      SELECT DISTINCT p.name
+      FROM user_roles ur
+      JOIN role_permissions rp ON ur.role_id = rp.role_id
+      JOIN permissions p ON rp.permission_id = p.id
+      WHERE ur.user_id = $1
+      `,
+      [user.id]
+    );
+    const permissions = permissionsResult.rows.map((row) => row.name);
+
     res.json({
       message: "Login successful",
       token,
@@ -156,6 +168,7 @@ const login = async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
+        permissions,
       },
     });
   } catch (error) {
@@ -222,6 +235,18 @@ const refresh = async (req, res) => {
 
     const accessToken = await issueSession(res, user);
 
+    const permissionsResult = await pool.query(
+      `
+      SELECT DISTINCT p.name
+      FROM user_roles ur
+      JOIN role_permissions rp ON ur.role_id = rp.role_id
+      JOIN permissions p ON rp.permission_id = p.id
+      WHERE ur.user_id = $1
+      `,
+      [user.id]
+    );
+    const permissions = permissionsResult.rows.map((row) => row.name);
+
     return res.json({
       message: "Token refreshed",
       token: accessToken,
@@ -230,6 +255,7 @@ const refresh = async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
+        permissions,
       },
     });
   } catch (error) {

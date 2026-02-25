@@ -39,6 +39,15 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     return unreadCount.toString();
   }, [unreadCount]);
 
+  const hasPermission = (permissionName: string) =>
+    Array.isArray(user?.permissions) && user.permissions.includes(permissionName);
+
+  const canSeeCaregiverPatientsNav =
+    user?.role === 'caregiver' && (!Array.isArray(user?.permissions) || hasPermission('VIEW_PATIENT_RECORD'));
+
+  const canSeeCaregiversNav =
+    user?.role === 'admin' || hasPermission('MANAGE_USERS');
+
   const handleLogout = () => {
     logout();
     navigate('/login');
@@ -109,7 +118,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Appointments', href: '/appointments', icon: Calendar },
-    { name: 'Patients', href: '/patients', icon: Users },
+    ...(canSeeCaregiverPatientsNav
+      ? [{ name: 'My Patients', href: '/caregiver/patients', icon: Users }]
+      : [{ name: 'Patients', href: '/patients', icon: Users }]),
+    ...(canSeeCaregiversNav ? [{ name: 'Caregivers', href: '/caregivers', icon: Users }] : []),
     { name: 'Doctors', href: '/doctors', icon: Stethoscope },
     { name: 'Records', href: '/records', icon: FileText },
     { name: 'Export/Import', href: '/export-import', icon: Download },

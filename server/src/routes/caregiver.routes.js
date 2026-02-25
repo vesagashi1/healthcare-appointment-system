@@ -1,8 +1,48 @@
 const express = require("express");
 const authMiddleware = require("../middlewares/auth.middleware");
+const hasPermission = require("../middlewares/permission.middleware");
 const pool = require("../config/db");
 
 const router = express.Router();
+
+/**
+ * GET caregivers
+ * List caregivers (admin / user-management)
+ */
+router.get(
+  "/",
+  authMiddleware,
+  hasPermission("MANAGE_USERS"),
+  async (req, res) => {
+    try {
+      const result = await pool.query(
+        `
+        SELECT
+          u.id,
+          u.name,
+          u.email,
+          COUNT(DISTINCT pc.patient_id) AS linked_patient_count
+        FROM users u
+        JOIN user_roles ur ON u.id = ur.user_id
+        JOIN roles r ON ur.role_id = r.id
+        LEFT JOIN patient_caregivers pc ON pc.caregiver_id = u.id
+        WHERE r.name = 'caregiver'
+        GROUP BY u.id, u.name, u.email
+        ORDER BY u.name ASC
+        `
+      );
+
+      res.json({
+        message: "Caregivers retrieved successfully",
+        caregivers: result.rows,
+        count: result.rowCount,
+      });
+    } catch (err) {
+      console.error("GET CAREGIVERS ERROR:", err);
+      res.status(500).json({ message: "Server error" });
+    }
+  }
+);
 
 /**
  * POST link caregiver to patient

@@ -130,6 +130,15 @@ router.get(
       } else if (role === "doctor") {
         query += ` AND d.user_id = $${++paramCount}`;
         values.push(userId);
+      } else if (role === "caregiver") {
+        query += `
+          AND p.id IN (
+            SELECT pc.patient_id
+            FROM patient_caregivers pc
+            WHERE pc.caregiver_id = $${++paramCount}
+          )
+        `;
+        values.push(userId);
       }
 
       if (patient_id) {
@@ -290,6 +299,15 @@ router.get(
         values.push(userId);
       } else if (role === "doctor") {
         query += ` AND d.user_id = $${++paramCount}`;
+        values.push(userId);
+      } else if (role === "caregiver") {
+        query += `
+          AND p.id IN (
+            SELECT pc.patient_id
+            FROM patient_caregivers pc
+            WHERE pc.caregiver_id = $${++paramCount}
+          )
+        `;
         values.push(userId);
       }
 

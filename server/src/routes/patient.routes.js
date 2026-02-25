@@ -395,6 +395,17 @@ router.get(
           `;
           values.push(userId);
         }
+      } else if (role === "caregiver") {
+        query += `
+          AND pr.patient_id IN (
+            SELECT p.user_id
+            FROM patient_caregivers pc
+            JOIN patients p ON p.id = pc.patient_id
+            WHERE pc.caregiver_id = $${++paramCount}
+          )
+          AND pr.record_type IN ('nursing_note', 'patient_note')
+        `;
+        values.push(userId);
       } else if (role === "admin" || role === "doctor") {
       }
 
