@@ -84,13 +84,13 @@ const AppointmentsPage = () => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'approved':
-        return 'bg-green-100 text-green-800';
+        return 'bg-green-500/15 text-green-200 border border-green-500/30';
       case 'cancelled':
-        return 'bg-red-100 text-red-800';
+        return 'bg-red-500/15 text-red-200 border border-red-500/30';
       case 'completed':
-        return 'bg-blue-100 text-blue-800';
+        return 'bg-blue-500/15 text-blue-200 border border-blue-500/30';
       default:
-        return 'bg-yellow-100 text-yellow-800';
+        return 'bg-yellow-500/15 text-yellow-200 border border-yellow-500/30';
     }
   };
 
@@ -105,7 +105,7 @@ const AppointmentsPage = () => {
   return (
     <div>
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Appointments</h1>
+        <h1 className="text-3xl font-bold text-slate-100">Appointments</h1>
         {user?.role === 'patient' && (
           <button
             onClick={() => setShowCreateModal(true)}
@@ -120,7 +120,7 @@ const AppointmentsPage = () => {
       {appointments.length === 0 ? (
         <div className="card text-center py-12">
           <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <p className="text-gray-600">No appointments found</p>
+          <p className="text-slate-300">No appointments found</p>
         </div>
       ) : (
         <div className="grid gap-4">
@@ -134,7 +134,7 @@ const AppointmentsPage = () => {
                       {format(new Date(appointment.appointment_date), 'PPpp')}
                     </span>
                   </div>
-                  <div className="space-y-1 text-sm text-gray-600">
+                  <div className="space-y-1 text-sm text-slate-300">
                     <p>
                       <span className="font-medium">Doctor:</span> {appointment.doctor_name}
                     </p>
@@ -156,7 +156,7 @@ const AppointmentsPage = () => {
                   {user?.role === 'doctor' && appointment.status === 'scheduled' && (
                     <button
                       onClick={() => handleApprove(appointment.id)}
-                      className="p-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200"
+                      className="p-2 bg-green-500/15 text-green-200 border border-green-500/30 rounded-lg hover:bg-green-500/25"
                       title="Approve"
                     >
                       <Check className="h-5 w-5" />
@@ -167,7 +167,7 @@ const AppointmentsPage = () => {
                     appointment.status !== 'completed' && (
                       <button
                         onClick={() => handleCancel(appointment.id)}
-                        className="p-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200"
+                        className="p-2 bg-red-500/15 text-red-200 border border-red-500/30 rounded-lg hover:bg-red-500/25"
                         title="Cancel"
                       >
                         <X className="h-5 w-5" />
@@ -183,11 +183,11 @@ const AppointmentsPage = () => {
       {/* Create Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+          <div className="bg-slate-900 border border-slate-700/60 text-slate-100 rounded-lg p-6 w-full max-w-md">
             <h2 className="text-2xl font-bold mb-4">Book New Appointment</h2>
             <form onSubmit={handleCreateAppointment} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-slate-200 mb-2">
                   Doctor
                 </label>
                 <select
@@ -207,7 +207,7 @@ const AppointmentsPage = () => {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-slate-200 mb-2">
                   Date & Time
                 </label>
                 <input

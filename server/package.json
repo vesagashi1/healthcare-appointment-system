@@ -6,8 +6,8 @@
   "scripts": {
     "dev": "nodemon src/app.js",
     "start": "node src/app.js",
-    "db:setup": "psql -U vesa -d postgres -f db/setup.sql",
-    "db:reset": "psql -U vesa -d postgres -c \"SELECT pg_terminate_backend(pg_stat_activity.pid) FROM pg_stat_activity WHERE pg_stat_activity.datname = 'healthcare_db' AND pid <> pg_backend_pid();\" && dropdb --if-exists -U vesa healthcare_db && npm run db:setup"
+    "db:setup": "psql -U postgres -d postgres -f db/setup.sql",
+    "db:reset": "psql -U postgres -d postgres -c \"SELECT pg_terminate_backend(pg_stat_activity.pid) FROM pg_stat_activity WHERE pg_stat_activity.datname = 'healthcare_db' AND pid <> pg_backend_pid();\" && dropdb --if-exists -U postgres healthcare_db && npm run db:setup"
   },
   "keywords": [],
   "author": "",

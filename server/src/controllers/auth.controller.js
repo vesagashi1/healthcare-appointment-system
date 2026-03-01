@@ -28,7 +28,9 @@ const getRefreshTokenFromCookie = (req) => {
   const cookies = cookieHeader.split(";").map((part) => part.trim());
   for (const cookie of cookies) {
     if (cookie.startsWith(`${REFRESH_COOKIE_NAME}=`)) {
-      return decodeURIComponent(cookie.substring(REFRESH_COOKIE_NAME.length + 1));
+      return decodeURIComponent(
+        cookie.substring(REFRESH_COOKIE_NAME.length + 1),
+      );
     }
   }
 
@@ -39,19 +41,21 @@ const issueSession = async (res, user) => {
   const accessToken = jwt.sign(
     { id: user.id, role: user.role },
     process.env.JWT_SECRET,
-    { expiresIn: ACCESS_TOKEN_TTL }
+    { expiresIn: ACCESS_TOKEN_TTL },
   );
 
   const refreshToken = createRefreshToken();
   const refreshTokenHash = hashRefreshToken(refreshToken);
-  const expiresAt = new Date(Date.now() + REFRESH_TOKEN_DAYS * 24 * 60 * 60 * 1000);
+  const expiresAt = new Date(
+    Date.now() + REFRESH_TOKEN_DAYS * 24 * 60 * 60 * 1000,
+  );
 
   await pool.query(
     `
     INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
     VALUES ($1, $2, $3)
     `,
-    [user.id, refreshTokenHash, expiresAt]
+    [user.id, refreshTokenHash, expiresAt],
   );
 
   res.cookie(REFRESH_COOKIE_NAME, refreshToken, {
@@ -68,7 +72,7 @@ const register = async (req, res) => {
 
     const roleResult = await pool.query(
       "SELECT id FROM roles WHERE name = $1",
-      [role]
+      [role],
     );
 
     if (roleResult.rows.length === 0) {
@@ -78,7 +82,7 @@ const register = async (req, res) => {
     const roleId = roleResult.rows[0].id;
     const existingUser = await pool.query(
       "SELECT id FROM users WHERE email = $1",
-      [email]
+      [email],
     );
 
     if (existingUser.rows.length > 0) {
@@ -92,7 +96,7 @@ const register = async (req, res) => {
       VALUES ($1, $2, $3)
       RETURNING id, name, email
       `,
-      [name, email, hashedPassword]
+      [name, email, hashedPassword],
     );
 
     const userId = userResult.rows[0].id;
@@ -102,7 +106,7 @@ const register = async (req, res) => {
       INSERT INTO user_roles (user_id, role_id)
       VALUES ($1, $2)
       `,
-      [userId, roleId]
+      [userId, roleId],
     );
 
     res.status(201).json({
@@ -132,7 +136,7 @@ const login = async (req, res) => {
       JOIN roles r ON ur.role_id = r.id
       WHERE u.email = $1
       `,
-      [email]
+      [email],
     );
 
     if (result.rows.length === 0) {
@@ -156,7 +160,7 @@ const login = async (req, res) => {
       JOIN permissions p ON rp.permission_id = p.id
       WHERE ur.user_id = $1
       `,
-      [user.id]
+      [user.id],
     );
     const permissions = permissionsResult.rows.map((row) => row.name);
 
@@ -193,7 +197,7 @@ const refresh = async (req, res) => {
       FROM refresh_tokens
       WHERE token_hash = $1
       `,
-      [refreshTokenHash]
+      [refreshTokenHash],
     );
 
     if (tokenResult.rowCount === 0) {
@@ -204,7 +208,9 @@ const refresh = async (req, res) => {
     const now = new Date();
 
     if (tokenRow.revoked_at || new Date(tokenRow.expires_at) <= now) {
-      return res.status(401).json({ message: "Refresh token expired or revoked" });
+      return res
+        .status(401)
+        .json({ message: "Refresh token expired or revoked" });
     }
 
     const userResult = await pool.query(
@@ -215,7 +221,7 @@ const refresh = async (req, res) => {
       JOIN roles r ON ur.role_id = r.id
       WHERE u.id = $1
       `,
-      [tokenRow.user_id]
+      [tokenRow.user_id],
     );
 
     if (userResult.rowCount === 0) {
@@ -230,7 +236,7 @@ const refresh = async (req, res) => {
       SET revoked_at = NOW()
       WHERE id = $1
       `,
-      [tokenRow.id]
+      [tokenRow.id],
     );
 
     const accessToken = await issueSession(res, user);
@@ -243,7 +249,7 @@ const refresh = async (req, res) => {
       JOIN permissions p ON rp.permission_id = p.id
       WHERE ur.user_id = $1
       `,
-      [user.id]
+      [user.id],
     );
     const permissions = permissionsResult.rows.map((row) => row.name);
 
@@ -276,7 +282,7 @@ const logout = async (req, res) => {
         SET revoked_at = NOW()
         WHERE token_hash = $1 AND revoked_at IS NULL
         `,
-        [refreshTokenHash]
+        [refreshTokenHash],
       );
     }
 

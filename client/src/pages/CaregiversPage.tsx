@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
-import { Navigate } from 'react-router-dom';
-import { Users } from 'lucide-react';
-import api from '../services/api';
-import { useAuth } from '../contexts/AuthContext';
+import { useEffect, useState } from "react";
+import { Navigate } from "react-router-dom";
+import { Users } from "lucide-react";
+import api from "../services/api";
+import { useAuth } from "../contexts/AuthContext";
 
 type CaregiverRow = {
   id: number;
@@ -17,9 +17,11 @@ export default function CaregiversPage() {
   const [loading, setLoading] = useState(true);
 
   const hasPermission = (permissionName: string) =>
-    Array.isArray(user?.permissions) && user.permissions.includes(permissionName);
+    Array.isArray(user?.permissions) &&
+    user.permissions.includes(permissionName);
 
-  const canViewCaregivers = user?.role === 'admin' || hasPermission('MANAGE_USERS');
+  const canViewCaregivers =
+    user?.role === "admin" || hasPermission("MANAGE_USERS");
 
   useEffect(() => {
     if (user && canViewCaregivers) {
@@ -30,10 +32,10 @@ export default function CaregiversPage() {
 
   const fetchCaregivers = async () => {
     try {
-      const response = await api.get('/caregivers');
+      const response = await api.get("/caregivers");
       setCaregivers(response.data.caregivers || []);
     } catch (error) {
-      console.error('Error fetching caregivers:', error);
+      console.error("Error fetching caregivers:", error);
     } finally {
       setLoading(false);
     }
@@ -54,29 +56,37 @@ export default function CaregiversPage() {
     <div>
       <div className="flex items-center mb-8">
         <Users className="h-8 w-8 text-primary-600 mr-3" />
-        <h1 className="text-3xl font-bold text-gray-900">Caregivers</h1>
+        <h1 className="text-3xl font-bold text-slate-100">Caregivers</h1>
       </div>
 
       {caregivers.length === 0 ? (
         <div className="card text-center py-12">
-          <p className="text-gray-600">No caregivers found</p>
+          <p className="text-slate-300">No caregivers found</p>
         </div>
       ) : (
         <div className="card overflow-x-auto">
           <table className="min-w-full">
             <thead>
-              <tr className="border-b">
-                <th className="text-left py-3 px-4 font-semibold text-gray-900">Name</th>
-                <th className="text-left py-3 px-4 font-semibold text-gray-900">Email</th>
-                <th className="text-left py-3 px-4 font-semibold text-gray-900">Linked Patients</th>
+              <tr className="border-b border-slate-700/50">
+                <th className="text-left py-3 px-4 font-semibold text-slate-100">
+                  Name
+                </th>
+                <th className="text-left py-3 px-4 font-semibold text-slate-100">
+                  Email
+                </th>
+                <th className="text-left py-3 px-4 font-semibold text-slate-100">
+                  Linked Patients
+                </th>
               </tr>
             </thead>
             <tbody>
               {caregivers.map((c) => (
-                <tr key={c.id} className="border-b last:border-b-0">
-                  <td className="py-3 px-4 text-gray-900">{c.name}</td>
-                  <td className="py-3 px-4 text-gray-700">{c.email}</td>
-                  <td className="py-3 px-4 text-gray-700">{Number(c.linked_patient_count) || 0}</td>
+                <tr key={c.id} className="border-b border-slate-700/30 last:border-b-0">
+                  <td className="py-3 px-4 text-slate-100">{c.name}</td>
+                  <td className="py-3 px-4 text-slate-300">{c.email}</td>
+                  <td className="py-3 px-4 text-slate-300">
+                    {Number(c.linked_patient_count) || 0}
+                  </td>
                 </tr>
               ))}
             </tbody>

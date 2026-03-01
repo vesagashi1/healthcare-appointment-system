@@ -105,19 +105,19 @@ const ExportImportPage = () => {
 
   return (
     <div>
-      <h1 className="text-3xl font-bold text-gray-900 mb-8">Export / Import Data</h1>
+      <h1 className="text-3xl font-bold text-slate-100 mb-8">Export / Import Data</h1>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Export Section */}
         <div className="card">
           <div className="flex items-center mb-6">
             <Download className="h-6 w-6 text-primary-600 mr-2" />
-            <h2 className="text-2xl font-semibold text-gray-900">Export Data</h2>
+            <h2 className="text-2xl font-semibold text-slate-100">Export Data</h2>
           </div>
 
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-slate-200 mb-2">
                 Data Type
               </label>
               <select
@@ -132,7 +132,7 @@ const ExportImportPage = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-slate-200 mb-2">
                 Format
               </label>
               <select
@@ -167,12 +167,12 @@ const ExportImportPage = () => {
         <div className="card">
           <div className="flex items-center mb-6">
             <Upload className="h-6 w-6 text-primary-600 mr-2" />
-            <h2 className="text-2xl font-semibold text-gray-900">Import Data</h2>
+            <h2 className="text-2xl font-semibold text-slate-100">Import Data</h2>
           </div>
 
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-slate-200 mb-2">
                 Data Type
               </label>
               <select
@@ -187,7 +187,7 @@ const ExportImportPage = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-slate-200 mb-2">
                 File (CSV, Excel, or JSON)
               </label>
               <input
@@ -197,7 +197,7 @@ const ExportImportPage = () => {
                 className="input-field"
               />
               {importFile && (
-                <p className="mt-2 text-sm text-gray-600 flex items-center">
+                <p className="mt-2 text-sm text-slate-300 flex items-center">
                   <FileText className="h-4 w-4 mr-1" />
                   {importFile.name}
                 </p>
@@ -227,8 +227,8 @@ const ExportImportPage = () => {
         <div
           className={`mt-6 p-4 rounded-lg flex items-center ${
             message.type === 'success'
-              ? 'bg-green-50 border border-green-200 text-green-800'
-              : 'bg-red-50 border border-red-200 text-red-800'
+              ? 'bg-green-500/15 border border-green-500/30 text-green-200'
+              : 'bg-red-500/15 border border-red-500/30 text-red-200'
           }`}
         >
           {message.type === 'success' ? (
@@ -241,9 +241,9 @@ const ExportImportPage = () => {
       )}
 
       {/* Info Section */}
-      <div className="mt-8 card bg-blue-50 border border-blue-200">
-        <h3 className="text-lg font-semibold text-blue-900 mb-2">📋 Instructions</h3>
-        <ul className="text-sm text-blue-800 space-y-1 list-disc list-inside">
+      <div className="mt-8 card bg-blue-500/10 border border-blue-500/25">
+        <h3 className="text-lg font-semibold text-blue-200 mb-2">📋 Instructions</h3>
+        <ul className="text-sm text-blue-200/90 space-y-1 list-disc list-inside">
           <li>Export supports JSON, CSV, and Excel formats</li>
           <li>Import accepts CSV, Excel (.xlsx, .xls), and JSON files</li>
           <li>Make sure your import file matches the expected format</li>

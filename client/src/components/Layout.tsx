@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useMemo, useState } from 'react';
+import { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -6,6 +6,7 @@ import {
   Calendar,
   Users,
   Stethoscope,
+  Building2,
   FileText,
   Download,
   Settings,
@@ -33,6 +34,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loadingNotifications, setLoadingNotifications] = useState(false);
+
+  const notificationsPanelRef = useRef<HTMLDivElement | null>(null);
+  const desktopNotificationsBtnRef = useRef<HTMLButtonElement | null>(null);
+  const mobileNotificationsBtnRef = useRef<HTMLButtonElement | null>(null);
 
   const unreadLabel = useMemo(() => {
     if (unreadCount > 99) return '99+';
@@ -115,6 +120,29 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     };
   }, [user]);
 
+  useEffect(() => {
+    if (!notificationsOpen) return;
+
+    const handleOutsideClick = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+
+      if (notificationsPanelRef.current?.contains(target)) return;
+      if (desktopNotificationsBtnRef.current?.contains(target)) return;
+      if (mobileNotificationsBtnRef.current?.contains(target)) return;
+
+      setNotificationsOpen(false);
+    };
+
+    document.addEventListener('mousedown', handleOutsideClick);
+    document.addEventListener('touchstart', handleOutsideClick);
+
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('touchstart', handleOutsideClick);
+    };
+  }, [notificationsOpen]);
+
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Appointments', href: '/appointments', icon: Calendar },
@@ -123,6 +151,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       : [{ name: 'Patients', href: '/patients', icon: Users }]),
     ...(canSeeCaregiversNav ? [{ name: 'Caregivers', href: '/caregivers', icon: Users }] : []),
     { name: 'Doctors', href: '/doctors', icon: Stethoscope },
+    { name: 'Wards', href: '/wards', icon: Building2 },
     { name: 'Records', href: '/records', icon: FileText },
     { name: 'Export/Import', href: '/export-import', icon: Download },
   ];
@@ -180,6 +209,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             onClick={() => setNotificationsOpen((open) => !open)}
             className={styles.notificationBtn}
             aria-label="Open notifications"
+            ref={mobileNotificationsBtnRef}
           >
             <Bell size={20} />
             {unreadCount > 0 && <span className={styles.notificationBadge}>{unreadLabel}</span>}
@@ -226,6 +256,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             onClick={() => setNotificationsOpen((open) => !open)}
             className={styles.notificationBtn}
             aria-label="Open notifications"
+            ref={desktopNotificationsBtnRef}
           >
             <Bell size={20} />
             {unreadCount > 0 && <span className={styles.notificationBadge}>{unreadLabel}</span>}
@@ -233,7 +264,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         </div>
 
         {notificationsOpen && (
-          <div className={styles.notificationsPanel}>
+          <div className={styles.notificationsPanel} ref={notificationsPanelRef}>
             <div className={styles.notificationsHeader}>
               <strong>Notifications</strong>
               <button onClick={handleMarkAllRead} className={styles.markAllBtn} type="button">

@@ -40,6 +40,9 @@ SET search_path TO public;
 -- 6. Add refresh token persistence table
 \i db/migrations/006_add_refresh_tokens.sql
 
+-- 7. Add ward soft-delete flag
+\i db/migrations/007_add_ward_active.sql
+
 -- ============================================
 -- Setup Complete!
 -- ============================================

@@ -40,13 +40,13 @@ const DoctorsPage = () => {
     <div>
       <div className="flex items-center mb-8">
         <Stethoscope className="h-8 w-8 text-primary-600 mr-3" />
-        <h1 className="text-3xl font-bold text-gray-900">Doctors</h1>
+        <h1 className="text-3xl font-bold text-slate-100">Doctors</h1>
       </div>
 
       {doctors.length === 0 ? (
         <div className="card text-center py-12">
           <Stethoscope className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <p className="text-gray-600">No doctors found</p>
+          <p className="text-slate-300">No doctors found</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -54,15 +54,15 @@ const DoctorsPage = () => {
             <div key={doctor.id} className="card hover:shadow-lg transition-shadow">
               <div className="flex items-start justify-between mb-4">
                 <div>
-                  <h3 className="text-xl font-semibold text-gray-900">{doctor.name}</h3>
-                  <p className="text-sm text-gray-600">{doctor.email}</p>
+                  <h3 className="text-xl font-semibold text-slate-100">{doctor.name}</h3>
+                  <p className="text-sm text-slate-300">{doctor.email}</p>
                 </div>
-                <div className="bg-purple-100 p-2 rounded-full">
-                  <Stethoscope className="h-6 w-6 text-purple-600" />
+                <div className="bg-purple-500/15 p-2 rounded-full border border-purple-500/25">
+                  <Stethoscope className="h-6 w-6 text-purple-300" />
                 </div>
               </div>
               <div className="mt-4">
-                <span className="inline-block px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm font-medium">
+                <span className="inline-block px-3 py-1 bg-purple-500/15 text-purple-200 border border-purple-500/30 rounded-full text-sm font-medium">
                   {doctor.specialization}
                 </span>
               </div>
