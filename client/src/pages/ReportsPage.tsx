@@ -8,7 +8,7 @@ type ReportPayload = {
   filters: Record<string, string | null>;
   overview: {
     total: number;
-    approved: number;
+    requested: number;
     scheduled: number;
     cancelled: number;
     completed: number;
@@ -191,8 +191,8 @@ const ReportsPage = () => {
             <label className="mb-1 block text-sm text-slate-300">Appointment Status</label>
             <select className="input-field" value={status} onChange={(e) => setStatus(e.target.value)}>
               <option value="">All statuses</option>
+              <option value="requested">requested</option>
               <option value="scheduled">scheduled</option>
-              <option value="approved">approved</option>
               <option value="cancelled">cancelled</option>
               <option value="completed">completed</option>
               <option value="no_show">no_show</option>
@@ -213,8 +213,8 @@ const ReportsPage = () => {
               <p className="mt-2 text-3xl font-bold text-slate-100">{report.overview.total}</p>
             </div>
             <div className="card">
-              <p className="text-sm text-slate-300">Approved</p>
-              <p className="mt-2 text-3xl font-bold text-emerald-200">{report.overview.approved}</p>
+              <p className="text-sm text-slate-300">Requested</p>
+              <p className="mt-2 text-3xl font-bold text-amber-200">{report.overview.requested}</p>
             </div>
             <div className="card">
               <p className="text-sm text-slate-300">Scheduled</p>

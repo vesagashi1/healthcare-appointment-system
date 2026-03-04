@@ -106,7 +106,7 @@ const getReportData = async (req) => {
     `
     SELECT
       COUNT(*)::int as total,
-      COUNT(*) FILTER (WHERE a.status = 'approved')::int as approved,
+      COUNT(*) FILTER (WHERE a.status = 'requested')::int as requested,
       COUNT(*) FILTER (WHERE a.status = 'scheduled')::int as scheduled,
       COUNT(*) FILTER (WHERE a.status = 'cancelled')::int as cancelled,
       COUNT(*) FILTER (WHERE a.status = 'completed')::int as completed
@@ -183,7 +183,7 @@ const getReportData = async (req) => {
 
   const overview = overviewResult.rows[0] || {
     total: 0,
-    approved: 0,
+    requested: 0,
     scheduled: 0,
     cancelled: 0,
     completed: 0,
@@ -210,7 +210,7 @@ const sendExport = (res, format, report) => {
   if (format === "csv") {
     const rows = [
       { section: "overview", metric: "total_appointments", value: report.overview.total },
-      { section: "overview", metric: "approved", value: report.overview.approved },
+      { section: "overview", metric: "requested", value: report.overview.requested },
       { section: "overview", metric: "scheduled", value: report.overview.scheduled },
       { section: "overview", metric: "cancelled", value: report.overview.cancelled },
       { section: "overview", metric: "completed", value: report.overview.completed },
@@ -248,7 +248,7 @@ const sendExport = (res, format, report) => {
 
     const overviewSheet = XLSX.utils.json_to_sheet([
       { metric: "total_appointments", value: report.overview.total },
-      { metric: "approved", value: report.overview.approved },
+      { metric: "requested", value: report.overview.requested },
       { metric: "scheduled", value: report.overview.scheduled },
       { metric: "cancelled", value: report.overview.cancelled },
       { metric: "completed", value: report.overview.completed },

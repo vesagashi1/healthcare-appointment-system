@@ -1,6 +1,6 @@
 const express = require("express");
 const authMiddleware = require("../middlewares/auth.middleware");
-const requireRole = require("../middlewares/role.middleware");
+const hasPermission = require("../middlewares/permission.middleware");
 const pool = require("../config/db");
 const { createNotificationsForUsers } = require("../services/notification.service");
 
@@ -38,6 +38,7 @@ const notifyUsersBestEffort = async (userIds, payload) => {
 router.get(
   "/",
   authMiddleware,
+  hasPermission("VIEW_WARD"),
   async (req, res) => {
     try {
       const result = await pool.query(
@@ -79,6 +80,7 @@ router.get(
 router.get(
   "/:id",
   authMiddleware,
+  hasPermission("VIEW_WARD"),
   async (req, res) => {
     try {
       const wardId = req.params.id;
@@ -189,7 +191,7 @@ router.get(
 router.patch(
   "/:id/restore",
   authMiddleware,
-  requireRole("admin"),
+  hasPermission("MANAGE_WARD"),
   async (req, res) => {
     const wardId = parseInt(req.params.id, 10);
     if (Number.isNaN(wardId)) {
@@ -264,7 +266,7 @@ router.patch(
 router.post(
   "/",
   authMiddleware,
-  requireRole("admin"),
+  hasPermission("MANAGE_WARD"),
   async (req, res) => {
     try {
       const { name } = req.body;
@@ -322,7 +324,7 @@ router.post(
 router.patch(
   "/:id",
   authMiddleware,
-  requireRole("admin"),
+  hasPermission("MANAGE_WARD"),
   async (req, res) => {
     try {
       const wardId = req.params.id;
@@ -391,7 +393,7 @@ router.patch(
 router.delete(
   "/:id",
   authMiddleware,
-  requireRole("admin"),
+  hasPermission("MANAGE_WARD"),
   async (req, res) => {
     const wardId = parseInt(req.params.id, 10);
     if (Number.isNaN(wardId)) {
@@ -478,7 +480,7 @@ router.delete(
 router.post(
   "/:id/doctors",
   authMiddleware,
-  requireRole("admin"),
+  hasPermission("MANAGE_WARD"),
   async (req, res) => {
     try {
       const wardId = parseInt(req.params.id, 10);
@@ -546,7 +548,7 @@ router.post(
 router.delete(
   "/:id/doctors/:doctorId",
   authMiddleware,
-  requireRole("admin"),
+  hasPermission("MANAGE_WARD"),
   async (req, res) => {
     try {
       const wardId = parseInt(req.params.id, 10);
@@ -599,7 +601,7 @@ router.delete(
 router.post(
   "/:id/nurses",
   authMiddleware,
-  requireRole("admin"),
+  hasPermission("MANAGE_WARD"),
   async (req, res) => {
     try {
       const wardId = parseInt(req.params.id, 10);
@@ -669,7 +671,7 @@ router.post(
 router.delete(
   "/:id/nurses/:nurseId",
   authMiddleware,
-  requireRole("admin"),
+  hasPermission("MANAGE_WARD"),
   async (req, res) => {
     try {
       const wardId = parseInt(req.params.id, 10);

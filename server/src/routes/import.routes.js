@@ -345,7 +345,7 @@ router.post(
         try {
           const result = await pool.query(
             "INSERT INTO appointments (patient_id, doctor_id, appointment_date, status) VALUES ($1, $2, $3, $4) RETURNING id",
-            [row.patient_id, row.doctor_id, row.appointment_date, row.status || "scheduled"]
+            [row.patient_id, row.doctor_id, row.appointment_date, row.status || "requested"]
           );
 
           results.success.push({

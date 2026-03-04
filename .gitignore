@@ -149,3 +149,9 @@ test_files/*.json
 !test_files/README.md
 *.md
 .DS_Store
+
+# Local delivery plan draft
+docs/LAB2_DELIVERY_PLAN_2026.txt
+
+# Local delivery plan draft
+docs/LAB2_DELIVERY_PLAN_2026.txt

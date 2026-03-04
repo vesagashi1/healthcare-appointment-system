@@ -18,6 +18,7 @@ import {
   Check,
   Search,
   BarChart3,
+  UserCircle2,
 } from "lucide-react";
 import styles from "./Layout.module.css";
 import { getAccessToken } from "../services/api";
@@ -54,14 +55,28 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     Array.isArray(user?.permissions) &&
     user.permissions.includes(permissionName);
 
-  const canSeeCaregiverPatientsNav =
-    user?.role === "caregiver" &&
-    (!Array.isArray(user?.permissions) || hasPermission("VIEW_PATIENT_RECORD"));
-
+  const canViewAppointments =
+    hasPermission("VIEW_APPOINTMENT") || hasPermission("CREATE_APPOINTMENT");
+  const canViewPatientsList = hasPermission("VIEW_PATIENT_LIST");
+  const canViewDoctors = hasPermission("VIEW_DOCTOR");
+  const canViewNurses =
+    hasPermission("VIEW_NURSE") || hasPermission("MANAGE_NURSE");
+  const canViewWards = hasPermission("VIEW_WARD");
+  const canViewRecords = hasPermission("VIEW_PATIENT_RECORD");
+  const canSeeExportImport = ["admin", "doctor", "nurse"].includes(
+    user?.role || "",
+  );
+  const canUseAdvancedSearch = ["admin", "doctor", "nurse"].includes(
+    user?.role || "",
+  );
+  const canSeeReportsNav = ["admin", "doctor", "nurse"].includes(
+    user?.role || "",
+  );
+  const canSeeCaregiverPatientsNav = user?.role === "caregiver" && canViewRecords;
   const canSeeCaregiversNav =
-    user?.role === "admin" || hasPermission("MANAGE_USERS");
-  const canSeeReportsNav =
-    user?.role === "admin" || user?.role === "doctor" || user?.role === "nurse";
+    user?.role === "admin" || hasPermission("VIEW_CAREGIVER");
+  const canSeeAdminNav =
+    hasPermission("VIEW_USERS") || hasPermission("MANAGE_USERS");
 
   const handleLogout = () => {
     logout();
@@ -159,25 +174,55 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const navigation = [
     { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-    { name: "Appointments", href: "/appointments", icon: Calendar },
-    ...(canSeeCaregiverPatientsNav
-      ? [{ name: "My Patients", href: "/caregiver/patients", icon: Users }]
-      : [{ name: "Patients", href: "/patients", icon: Users }]),
-    ...(canSeeCaregiversNav
-      ? [{ name: "Caregivers", href: "/caregivers", icon: Users }]
-      : []),
-    { name: "Doctors", href: "/doctors", icon: Stethoscope },
-    { name: "Nurses", href: "/nurses", icon: HeartPulse },
-    { name: "Wards", href: "/wards", icon: Building2 },
-    { name: "Records", href: "/records", icon: FileText },
-    { name: "Export/Import", href: "/export-import", icon: Download },
-    { name: "Advanced Search", href: "/search", icon: Search },
-    ...(canSeeReportsNav
-      ? [{ name: "Reports", href: "/reports", icon: BarChart3 }]
-      : []),
   ];
 
-  if (user?.role === "admin") {
+  if (canViewAppointments) {
+    navigation.push({ name: "Appointments", href: "/appointments", icon: Calendar });
+  }
+
+  if (user?.role === "patient") {
+    navigation.push({ name: "My Profile", href: "/my-profile", icon: UserCircle2 });
+  }
+
+  if (canSeeCaregiverPatientsNav) {
+    navigation.push({ name: "My Patients", href: "/caregiver/patients", icon: Users });
+  } else if (canViewPatientsList) {
+    navigation.push({ name: "Patients", href: "/patients", icon: Users });
+  }
+
+  if (canSeeCaregiversNav) {
+    navigation.push({ name: "Caregivers", href: "/caregivers", icon: Users });
+  }
+
+  if (canViewDoctors) {
+    navigation.push({ name: "Doctors", href: "/doctors", icon: Stethoscope });
+  }
+
+  if (canViewNurses) {
+    navigation.push({ name: "Nurses", href: "/nurses", icon: HeartPulse });
+  }
+
+  if (canViewWards) {
+    navigation.push({ name: "Wards", href: "/wards", icon: Building2 });
+  }
+
+  if (canViewRecords) {
+    navigation.push({ name: "Records", href: "/records", icon: FileText });
+  }
+
+  if (canSeeExportImport) {
+    navigation.push({ name: "Export/Import", href: "/export-import", icon: Download });
+  }
+
+  if (canUseAdvancedSearch) {
+    navigation.push({ name: "Advanced Search", href: "/search", icon: Search });
+  }
+
+  if (canSeeReportsNav) {
+    navigation.push({ name: "Reports", href: "/reports", icon: BarChart3 });
+  }
+
+  if (canSeeAdminNav) {
     navigation.push({ name: "Admin", href: "/admin", icon: Settings });
   }
 

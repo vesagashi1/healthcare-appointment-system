@@ -21,6 +21,7 @@ import NursesPage from "./pages/NursesPage";
 import WardsPage from "./pages/WardsPage";
 import AdvancedSearchPage from "./pages/AdvancedSearchPage";
 import ReportsPage from "./pages/ReportsPage";
+import MyProfilePage from "./pages/MyProfilePage";
 import Layout from "./components/Layout";
 import { ToastProvider } from "./contexts/ToastContext";
 
@@ -64,6 +65,17 @@ function AppRoutes() {
           <PrivateRoute>
             <Layout>
               <AppointmentsPage />
+            </Layout>
+          </PrivateRoute>
+        }
+      />
+
+      <Route
+        path="/my-profile"
+        element={
+          <PrivateRoute>
+            <Layout>
+              <MyProfilePage />
             </Layout>
           </PrivateRoute>
         }

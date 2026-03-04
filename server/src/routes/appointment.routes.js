@@ -17,6 +17,13 @@ router.post(
   async (req, res) => {
     const { doctor_id, appointment_date } = req.body;
     const patientUserId = req.user.id;
+    const role = req.user.role;
+
+    if (role !== "patient") {
+      return res.status(403).json({
+        message: "Only patients can request appointments",
+      });
+    }
 
     if (!doctor_id || !appointment_date) {
       return res.status(400).json({
@@ -24,11 +31,40 @@ router.post(
       });
     }
 
+    const appointmentDateObj = new Date(appointment_date);
+    if (Number.isNaN(appointmentDateObj.getTime())) {
+      return res.status(400).json({
+        message: "Invalid appointment_date",
+      });
+    }
+
+    if (appointmentDateObj <= new Date()) {
+      return res.status(400).json({
+        message: "Appointment date must be in the future",
+      });
+    }
+
     try {
-      const patientLookup = await pool.query(
+      let patientLookup = await pool.query(
         `SELECT id FROM patients WHERE user_id = $1`,
         [patientUserId]
       );
+
+      if (patientLookup.rowCount === 0) {
+        await pool.query(
+          `
+          INSERT INTO patients (user_id)
+          VALUES ($1)
+          ON CONFLICT (user_id) DO NOTHING
+          `,
+          [patientUserId]
+        );
+
+        patientLookup = await pool.query(
+          `SELECT id FROM patients WHERE user_id = $1`,
+          [patientUserId]
+        );
+      }
 
       if (patientLookup.rowCount === 0) {
         return res.status(404).json({
@@ -40,8 +76,8 @@ router.post(
 
       const result = await pool.query(
         `
-        INSERT INTO appointments (doctor_id, patient_id, appointment_date)
-        VALUES ($1, $2, $3)
+        INSERT INTO appointments (doctor_id, patient_id, appointment_date, status)
+        VALUES ($1, $2, $3, 'requested')
         RETURNING *
         `,
         [doctor_id, patient_id, appointment_date]
@@ -54,9 +90,9 @@ router.post(
         );
         const doctorUserId = doctorLookup.rows[0]?.user_id;
         await createNotificationsForUsers([patientUserId, doctorUserId], {
-          type: "APPOINTMENT_CREATED",
-          title: "New Appointment",
-          message: `Appointment scheduled for ${appointment_date}`,
+          type: "APPOINTMENT_REQUESTED",
+          title: "Appointment Request",
+          message: `Appointment requested for ${appointment_date}`,
           metadata: {
             appointment_id: result.rows[0].id,
             doctor_id,
@@ -69,7 +105,7 @@ router.post(
       }
 
       return res.status(201).json({
-        message: "Appointment created",
+        message: "Appointment request created",
         appointment: result.rows[0],
       });
     } catch (err) {
@@ -362,10 +398,16 @@ router.patch(
         });
       }
 
+      if (check.rows[0].status !== "requested") {
+        return res.status(409).json({
+          message: "Only requested appointments can be approved",
+        });
+      }
+
       const result = await pool.query(
         `
         UPDATE appointments
-        SET status = 'approved'
+        SET status = 'scheduled'
         WHERE id = $1
         RETURNING *
         `,
@@ -375,9 +417,9 @@ router.patch(
       try {
         const patientUserId = check.rows[0]?.patient_user_id;
         await createNotificationsForUsers([patientUserId], {
-          type: "APPOINTMENT_APPROVED",
-          title: "Appointment Approved",
-          message: "Your appointment has been approved by the doctor",
+          type: "APPOINTMENT_SCHEDULED",
+          title: "Appointment Scheduled",
+          message: "Your appointment request was approved and scheduled",
           metadata: {
             appointment_id: result.rows[0].id,
             status: result.rows[0].status,
@@ -388,7 +430,7 @@ router.patch(
       }
 
       return res.json({
-        message: "Appointment approved",
+        message: "Appointment approved and scheduled",
         appointment: result.rows[0],
       });
     } catch (err) {
