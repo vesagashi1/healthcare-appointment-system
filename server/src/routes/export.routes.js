@@ -7,6 +7,17 @@ const XLSX = require("xlsx");
 
 const router = express.Router();
 
+const normalizeExportFormat = (value) => {
+  const format = String(value || "json").toLowerCase().trim();
+  if (format === "xlsx" || format === "xls" || format === "excel") {
+    return "excel";
+  }
+  if (format === "csv") {
+    return "csv";
+  }
+  return "json";
+};
+
 // Helper function to format data
 const formatPatientData = (rows) => {
   return rows.map(row => ({
@@ -55,7 +66,7 @@ router.get(
   hasPermission("VIEW_PATIENT_RECORD"),
   async (req, res) => {
     try {
-      const { format = "json" } = req.query;
+      const format = normalizeExportFormat(req.query.format);
 
       // Fetch patients data
       const result = await pool.query(`
@@ -120,10 +131,7 @@ router.get(
   hasPermission("VIEW_APPOINTMENT"),
   async (req, res) => {
     try {
-      const { format = "json" } = req.query;
-      const normalizedFormat = (format || "json").toLowerCase().trim();
-
-      console.log("Export appointments - format:", format, "normalized:", normalizedFormat);
+      const normalizedFormat = normalizeExportFormat(req.query.format);
 
       const result = await pool.query(`
         SELECT 
@@ -142,8 +150,6 @@ router.get(
       `);
 
       const data = formatAppointmentData(result.rows);
-
-      console.log("Data length:", data.length);
 
       if (normalizedFormat === "csv") {
         try {
@@ -190,7 +196,7 @@ router.get(
   hasPermission("VIEW_PATIENT_RECORD"),
   async (req, res) => {
     try {
-      const { format = "json" } = req.query;
+      const format = normalizeExportFormat(req.query.format);
 
       const result = await pool.query(`
         SELECT 
