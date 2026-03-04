@@ -1,6 +1,6 @@
-import { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
 import {
   LayoutDashboard,
   Calendar,
@@ -18,11 +18,14 @@ import {
   Check,
   Search,
   BarChart3,
-} from 'lucide-react';
-import styles from './Layout.module.css';
-import { getAccessToken } from '../services/api';
-import { NotificationItem, notificationService } from '../services/notificationService';
-import { formatDistanceToNow } from 'date-fns';
+} from "lucide-react";
+import styles from "./Layout.module.css";
+import { getAccessToken } from "../services/api";
+import {
+  NotificationItem,
+  notificationService,
+} from "../services/notificationService";
+import { formatDistanceToNow } from "date-fns";
 
 interface LayoutProps {
   children: ReactNode;
@@ -43,23 +46,26 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const mobileNotificationsBtnRef = useRef<HTMLButtonElement | null>(null);
 
   const unreadLabel = useMemo(() => {
-    if (unreadCount > 99) return '99+';
+    if (unreadCount > 99) return "99+";
     return unreadCount.toString();
   }, [unreadCount]);
 
   const hasPermission = (permissionName: string) =>
-    Array.isArray(user?.permissions) && user.permissions.includes(permissionName);
+    Array.isArray(user?.permissions) &&
+    user.permissions.includes(permissionName);
 
   const canSeeCaregiverPatientsNav =
-    user?.role === 'caregiver' && (!Array.isArray(user?.permissions) || hasPermission('VIEW_PATIENT_RECORD'));
+    user?.role === "caregiver" &&
+    (!Array.isArray(user?.permissions) || hasPermission("VIEW_PATIENT_RECORD"));
 
   const canSeeCaregiversNav =
-    user?.role === 'admin' || hasPermission('MANAGE_USERS');
-  const canSeeReportsNav = user?.role === 'admin' || user?.role === 'doctor' || user?.role === 'nurse';
+    user?.role === "admin" || hasPermission("MANAGE_USERS");
+  const canSeeReportsNav =
+    user?.role === "admin" || user?.role === "doctor" || user?.role === "nurse";
 
   const handleLogout = () => {
     logout();
-    navigate('/login');
+    navigate("/login");
   };
 
   const loadNotifications = async () => {
@@ -73,7 +79,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       setNotifications(list);
       setUnreadCount(unread);
     } catch (err) {
-      console.error('Failed to load notifications:', err);
+      console.error("Failed to load notifications:", err);
     } finally {
       setLoadingNotifications(false);
     }
@@ -83,21 +89,25 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     try {
       await notificationService.markRead(id);
       setNotifications((current) =>
-        current.map((item) => (item._id === id ? { ...item, read: true } : item))
+        current.map((item) =>
+          item._id === id ? { ...item, read: true } : item,
+        ),
       );
       setUnreadCount((current) => Math.max(0, current - 1));
     } catch (err) {
-      console.error('Failed to mark notification as read:', err);
+      console.error("Failed to mark notification as read:", err);
     }
   };
 
   const handleMarkAllRead = async () => {
     try {
       await notificationService.markAllRead();
-      setNotifications((current) => current.map((item) => ({ ...item, read: true })));
+      setNotifications((current) =>
+        current.map((item) => ({ ...item, read: true })),
+      );
       setUnreadCount(0);
     } catch (err) {
-      console.error('Failed to mark all notifications as read:', err);
+      console.error("Failed to mark all notifications as read:", err);
     }
   };
 
@@ -109,7 +119,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     if (!token) return;
 
     const socket = notificationService.connectSocket(token);
-    socket.on('notification:new', (notification: NotificationItem) => {
+    socket.on("notification:new", (notification: NotificationItem) => {
       setNotifications((current) => {
         if (current.some((n) => n._id === notification._id)) return current;
         return [notification, ...current].slice(0, 20);
@@ -138,33 +148,37 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       setNotificationsOpen(false);
     };
 
-    document.addEventListener('mousedown', handleOutsideClick);
-    document.addEventListener('touchstart', handleOutsideClick);
+    document.addEventListener("mousedown", handleOutsideClick);
+    document.addEventListener("touchstart", handleOutsideClick);
 
     return () => {
-      document.removeEventListener('mousedown', handleOutsideClick);
-      document.removeEventListener('touchstart', handleOutsideClick);
+      document.removeEventListener("mousedown", handleOutsideClick);
+      document.removeEventListener("touchstart", handleOutsideClick);
     };
   }, [notificationsOpen]);
 
   const navigation = [
-    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-    { name: 'Appointments', href: '/appointments', icon: Calendar },
+    { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+    { name: "Appointments", href: "/appointments", icon: Calendar },
     ...(canSeeCaregiverPatientsNav
-      ? [{ name: 'My Patients', href: '/caregiver/patients', icon: Users }]
-      : [{ name: 'Patients', href: '/patients', icon: Users }]),
-    ...(canSeeCaregiversNav ? [{ name: 'Caregivers', href: '/caregivers', icon: Users }] : []),
-    { name: 'Doctors', href: '/doctors', icon: Stethoscope },
-    { name: 'Nurses', href: '/nurses', icon: HeartPulse },
-    { name: 'Wards', href: '/wards', icon: Building2 },
-    { name: 'Records', href: '/records', icon: FileText },
-    { name: 'Export/Import', href: '/export-import', icon: Download },
-    { name: 'Advanced Search', href: '/search', icon: Search },
-    ...(canSeeReportsNav ? [{ name: 'Reports', href: '/reports', icon: BarChart3 }] : []),
+      ? [{ name: "My Patients", href: "/caregiver/patients", icon: Users }]
+      : [{ name: "Patients", href: "/patients", icon: Users }]),
+    ...(canSeeCaregiversNav
+      ? [{ name: "Caregivers", href: "/caregivers", icon: Users }]
+      : []),
+    { name: "Doctors", href: "/doctors", icon: Stethoscope },
+    { name: "Nurses", href: "/nurses", icon: HeartPulse },
+    { name: "Wards", href: "/wards", icon: Building2 },
+    { name: "Records", href: "/records", icon: FileText },
+    { name: "Export/Import", href: "/export-import", icon: Download },
+    { name: "Advanced Search", href: "/search", icon: Search },
+    ...(canSeeReportsNav
+      ? [{ name: "Reports", href: "/reports", icon: BarChart3 }]
+      : []),
   ];
 
-  if (user?.role === 'admin') {
-    navigation.push({ name: 'Admin', href: '/admin', icon: Settings });
+  if (user?.role === "admin") {
+    navigation.push({ name: "Admin", href: "/admin", icon: Settings });
   }
 
   const isActive = (path: string) => location.pathname === path;
@@ -183,7 +197,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               <Link
                 key={item.name}
                 to={item.href}
-                className={`${styles.navItem} ${isActive(item.href) ? styles.navItemActive : ''}`}
+                className={`${styles.navItem} ${isActive(item.href) ? styles.navItemActive : ""}`}
               >
                 <Icon className={styles.navIcon} />
                 {item.name}
@@ -219,11 +233,18 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             ref={mobileNotificationsBtnRef}
           >
             <Bell size={20} />
-            {unreadCount > 0 && <span className={styles.notificationBadge}>{unreadLabel}</span>}
+            {unreadCount > 0 && (
+              <span className={styles.notificationBadge}>{unreadLabel}</span>
+            )}
           </button>
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            style={{ background: 'none', border: 'none', color: 'rgba(226, 232, 240, 0.9)', cursor: 'pointer' }}
+            style={{
+              background: "none",
+              border: "none",
+              color: "rgba(226, 232, 240, 0.9)",
+              cursor: "pointer",
+            }}
           >
             {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
@@ -241,7 +262,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   key={item.name}
                   to={item.href}
                   onClick={() => setMobileMenuOpen(false)}
-                  className={`${styles.navItem} ${isActive(item.href) ? styles.navItemActive : ''}`}
+                  className={`${styles.navItem} ${isActive(item.href) ? styles.navItemActive : ""}`}
                 >
                   <Icon className={styles.navIcon} />
                   {item.name}
@@ -266,15 +287,24 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             ref={desktopNotificationsBtnRef}
           >
             <Bell size={20} />
-            {unreadCount > 0 && <span className={styles.notificationBadge}>{unreadLabel}</span>}
+            {unreadCount > 0 && (
+              <span className={styles.notificationBadge}>{unreadLabel}</span>
+            )}
           </button>
         </div>
 
         {notificationsOpen && (
-          <div className={styles.notificationsPanel} ref={notificationsPanelRef}>
+          <div
+            className={styles.notificationsPanel}
+            ref={notificationsPanelRef}
+          >
             <div className={styles.notificationsHeader}>
               <strong>Notifications</strong>
-              <button onClick={handleMarkAllRead} className={styles.markAllBtn} type="button">
+              <button
+                onClick={handleMarkAllRead}
+                className={styles.markAllBtn}
+                type="button"
+              >
                 Mark all read
               </button>
             </div>
@@ -282,7 +312,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             {loadingNotifications ? (
               <div className={styles.notificationsEmpty}>Loading...</div>
             ) : notifications.length === 0 ? (
-              <div className={styles.notificationsEmpty}>No notifications yet</div>
+              <div className={styles.notificationsEmpty}>
+                No notifications yet
+              </div>
             ) : (
               <div className={styles.notificationsList}>
                 {notifications.map((item) => (
@@ -291,7 +323,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                     className={`${styles.notificationItem} ${item.read ? styles.notificationRead : styles.notificationUnread}`}
                   >
                     <div className={styles.notificationTopRow}>
-                      <span className={styles.notificationTitle}>{item.title}</span>
+                      <span className={styles.notificationTitle}>
+                        {item.title}
+                      </span>
                       {!item.read && (
                         <button
                           type="button"
@@ -304,7 +338,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                     </div>
                     <p className={styles.notificationMessage}>{item.message}</p>
                     <span className={styles.notificationTime}>
-                      {formatDistanceToNow(new Date(item.created_at), { addSuffix: true })}
+                      {formatDistanceToNow(new Date(item.created_at), {
+                        addSuffix: true,
+                      })}
                     </span>
                   </div>
                 ))}
