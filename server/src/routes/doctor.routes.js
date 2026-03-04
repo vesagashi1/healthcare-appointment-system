@@ -8,8 +8,6 @@ const { createNotificationsForUsers } = require("../services/notification.servic
 
 const router = express.Router();
 
-/* ── helpers ── */
-
 const listUserIdsForRole = async (roleName) => {
   const result = await pool.query(
     `SELECT ur.user_id as id FROM user_roles ur JOIN roles r ON ur.role_id = r.id WHERE r.name = $1`,
@@ -70,129 +68,129 @@ const ensureDoctorScope = async (req, res, next) => {
   }
 };
 
-/* ──────────────────────────────────────────────
-   GET /  — list all doctors
-   ────────────────────────────────────────────── */
-router.get("/", authMiddleware, async (req, res) => {
-  try {
-    const { specialization } = req.query;
+router.get(
+  "/",
+  authMiddleware,
+  hasPermission("VIEW_DOCTOR"),
+  async (req, res) => {
+    try {
+      const { specialization } = req.query;
 
-    let query = `
-      SELECT
-        d.id,
-        d.specialization,
-        u.id as user_id,
-        u.name,
-        u.email,
-        u.created_at,
-        COALESCE(u.active, true) as active,
-        COUNT(DISTINCT dw.ward_id) as ward_count
-      FROM doctors d
-      JOIN users u ON d.user_id = u.id
-      LEFT JOIN doctor_wards dw ON d.id = dw.doctor_id
-    `;
+      let query = `
+        SELECT
+          d.id,
+          d.specialization,
+          u.id as user_id,
+          u.name,
+          u.email,
+          u.created_at,
+          COALESCE(u.active, true) as active,
+          COUNT(DISTINCT dw.ward_id) as ward_count
+        FROM doctors d
+        JOIN users u ON d.user_id = u.id
+        LEFT JOIN doctor_wards dw ON d.id = dw.doctor_id
+      `;
 
-    const values = [];
-    if (specialization) {
-      query += ` WHERE d.specialization = $1`;
-      values.push(specialization);
+      const values = [];
+      if (specialization) {
+        query += ` WHERE d.specialization = $1`;
+        values.push(specialization);
+      }
+
+      query += ` GROUP BY d.id, d.specialization, u.id, u.name, u.email, u.created_at, u.active`;
+      query += ` ORDER BY COALESCE(u.active, true) DESC, u.name ASC`;
+
+      const result = await pool.query(query, values);
+
+      res.json({
+        message: "Doctors retrieved successfully",
+        doctors: result.rows,
+        count: result.rowCount,
+      });
+    } catch (err) {
+      console.error("GET DOCTORS ERROR:", err);
+      res.status(500).json({ message: "Server error" });
     }
-
-    query += ` GROUP BY d.id, d.specialization, u.id, u.name, u.email, u.created_at, u.active`;
-    query += ` ORDER BY COALESCE(u.active, true) DESC, u.name ASC`;
-
-    const result = await pool.query(query, values);
-
-    res.json({
-      message: "Doctors retrieved successfully",
-      doctors: result.rows,
-      count: result.rowCount,
-    });
-  } catch (err) {
-    console.error("GET DOCTORS ERROR:", err);
-    res.status(500).json({ message: "Server error" });
   }
-});
+);
 
-/* ──────────────────────────────────────────────
-   GET /:id  — doctor detail
-   ────────────────────────────────────────────── */
-router.get("/:id", authMiddleware, async (req, res) => {
-  try {
-    const doctorId = req.params.id;
+router.get(
+  "/:id",
+  authMiddleware,
+  hasPermission("VIEW_DOCTOR"),
+  async (req, res) => {
+    try {
+      const doctorId = req.params.id;
 
-    const doctorResult = await pool.query(
-      `
-      SELECT d.id, d.specialization, u.id as user_id, u.name, u.email, u.created_at,
-             COALESCE(u.active, true) as active
-      FROM doctors d
-      JOIN users u ON d.user_id = u.id
-      WHERE d.id = $1
-      `,
-      [doctorId]
-    );
+      const doctorResult = await pool.query(
+        `
+        SELECT d.id, d.specialization, u.id as user_id, u.name, u.email, u.created_at,
+               COALESCE(u.active, true) as active
+        FROM doctors d
+        JOIN users u ON d.user_id = u.id
+        WHERE d.id = $1
+        `,
+        [doctorId]
+      );
 
-    if (doctorResult.rowCount === 0) {
-      return res.status(404).json({ message: "Doctor not found" });
-    }
+      if (doctorResult.rowCount === 0) {
+        return res.status(404).json({ message: "Doctor not found" });
+      }
 
-    const doctor = doctorResult.rows[0];
+      const doctor = doctorResult.rows[0];
 
-    const wardsResult = await pool.query(
-      `SELECT w.id, w.name FROM wards w JOIN doctor_wards dw ON w.id = dw.ward_id WHERE dw.doctor_id = $1`,
-      [doctorId]
-    );
+      const wardsResult = await pool.query(
+        `SELECT w.id, w.name FROM wards w JOIN doctor_wards dw ON w.id = dw.ward_id WHERE dw.doctor_id = $1`,
+        [doctorId]
+      );
 
-    const appointmentCountResult = await pool.query(
-      `
-      SELECT
-        COUNT(*) as total,
-        COUNT(*) FILTER (WHERE status = 'scheduled') as scheduled,
-        COUNT(*) FILTER (WHERE status = 'approved') as approved,
-        COUNT(*) FILTER (WHERE status = 'completed') as completed
-      FROM appointments
-      WHERE doctor_id = $1
-      `,
-      [doctorId]
-    );
+      const appointmentCountResult = await pool.query(
+        `
+        SELECT
+          COUNT(*) as total,
+          COUNT(*) FILTER (WHERE status = 'requested') as requested,
+          COUNT(*) FILTER (WHERE status = 'scheduled') as scheduled,
+          COUNT(*) FILTER (WHERE status = 'completed') as completed
+        FROM appointments
+        WHERE doctor_id = $1
+        `,
+        [doctorId]
+      );
 
-    // Get patients through wards
-    const patientsResult = await pool.query(
-      `
-      SELECT DISTINCT p.id, u.id as user_id, u.name, u.email,
-             w.id as ward_id, w.name as ward_name
-      FROM patients p
-      JOIN users u ON p.user_id = u.id
-      JOIN wards w ON p.ward_id = w.id
-      JOIN doctor_wards dw ON w.id = dw.ward_id
-      WHERE dw.doctor_id = $1
-      ORDER BY u.name ASC
-      `,
-      [doctorId]
-    );
+      const patientsResult = await pool.query(
+        `
+        SELECT DISTINCT p.id, u.id as user_id, u.name, u.email,
+               w.id as ward_id, w.name as ward_name
+        FROM patients p
+        JOIN users u ON p.user_id = u.id
+        JOIN wards w ON p.ward_id = w.id
+        JOIN doctor_wards dw ON w.id = dw.ward_id
+        WHERE dw.doctor_id = $1
+        ORDER BY u.name ASC
+        `,
+        [doctorId]
+      );
 
-    res.json({
-      message: "Doctor retrieved successfully",
-      doctor: {
-        ...doctor,
-        wards: wardsResult.rows,
-        assigned_patients: patientsResult.rows,
-        appointment_stats: appointmentCountResult.rows[0],
-        stats: {
-          ward_count: wardsResult.rowCount,
-          patient_count: patientsResult.rowCount,
+      res.json({
+        message: "Doctor retrieved successfully",
+        doctor: {
+          ...doctor,
+          wards: wardsResult.rows,
+          assigned_patients: patientsResult.rows,
+          appointment_stats: appointmentCountResult.rows[0],
+          stats: {
+            ward_count: wardsResult.rowCount,
+            patient_count: patientsResult.rowCount,
+          },
         },
-      },
-    });
-  } catch (err) {
-    console.error("GET DOCTOR ERROR:", err);
-    res.status(500).json({ message: "Server error" });
+      });
+    } catch (err) {
+      console.error("GET DOCTOR ERROR:", err);
+      res.status(500).json({ message: "Server error" });
+    }
   }
-});
+);
 
-/* ──────────────────────────────────────────────
-   POST /  — create a new doctor (admin only)
-   ────────────────────────────────────────────── */
 router.post("/", authMiddleware, requireRole("admin"), async (req, res) => {
   const { name, email, password, specialization } = req.body;
 
@@ -216,7 +214,6 @@ router.post("/", authMiddleware, requireRole("admin"), async (req, res) => {
     );
     const newUser = userResult.rows[0];
 
-    // Assign doctor role
     const roleResult = await pool.query(`SELECT id FROM roles WHERE name = 'doctor'`);
     if (roleResult.rowCount === 0) {
       await pool.query("ROLLBACK");
@@ -227,7 +224,6 @@ router.post("/", authMiddleware, requireRole("admin"), async (req, res) => {
       [newUser.id, roleResult.rows[0].id]
     );
 
-    // Create doctors row
     const doctorResult = await pool.query(
       `INSERT INTO doctors (user_id, specialization) VALUES ($1, $2) RETURNING id, specialization`,
       [newUser.id, specialization]
@@ -256,9 +252,6 @@ router.post("/", authMiddleware, requireRole("admin"), async (req, res) => {
   }
 });
 
-/* ──────────────────────────────────────────────
-   PATCH /:id  — update doctor info (admin only)
-   ────────────────────────────────────────────── */
 router.patch("/:id", authMiddleware, requireRole("admin"), async (req, res) => {
   const doctorId = parseInt(req.params.id, 10);
   if (Number.isNaN(doctorId)) {
@@ -282,7 +275,6 @@ router.patch("/:id", authMiddleware, requireRole("admin"), async (req, res) => {
 
     const doc = doctorCheck.rows[0];
 
-    // If email changed, check uniqueness
     if (email && email !== doc.email) {
       const dup = await pool.query(`SELECT id FROM users WHERE email = $1 AND id != $2`, [email, doc.user_id]);
       if (dup.rowCount > 0) {
@@ -290,7 +282,6 @@ router.patch("/:id", authMiddleware, requireRole("admin"), async (req, res) => {
       }
     }
 
-    // Update users table
     const userSets = [];
     const userVals = [];
     let idx = 1;
@@ -301,7 +292,6 @@ router.patch("/:id", authMiddleware, requireRole("admin"), async (req, res) => {
       await pool.query(`UPDATE users SET ${userSets.join(", ")} WHERE id = $${idx}`, userVals);
     }
 
-    // Update doctors table
     if (specialization) {
       await pool.query(`UPDATE doctors SET specialization = $1 WHERE id = $2`, [specialization, doctorId]);
     }
@@ -329,9 +319,6 @@ router.patch("/:id", authMiddleware, requireRole("admin"), async (req, res) => {
   }
 });
 
-/* ──────────────────────────────────────────────
-   DELETE /:id  — suspend doctor (soft delete)
-   ────────────────────────────────────────────── */
 router.delete("/:id", authMiddleware, requireRole("admin"), async (req, res) => {
   const doctorId = parseInt(req.params.id, 10);
   if (Number.isNaN(doctorId)) {
@@ -359,18 +346,13 @@ router.delete("/:id", authMiddleware, requireRole("admin"), async (req, res) => 
 
     const doc = doctorCheck.rows[0];
 
-    // Remove ward links
     const removeWards = await pool.query(`DELETE FROM doctor_wards WHERE doctor_id = $1`, [doctorId]);
-
-    // Remove patient assignments
     const removeAssignments = await pool.query(
       `DELETE FROM patient_assignments WHERE staff_id = $1 AND role = 'doctor'`,
       [doc.user_id]
     );
-
-    // Cancel scheduled appointments
     const cancelAppointments = await pool.query(
-      `UPDATE appointments SET status = 'cancelled' WHERE doctor_id = $1 AND status IN ('scheduled', 'approved')`,
+      `UPDATE appointments SET status = 'cancelled' WHERE doctor_id = $1 AND status IN ('requested', 'scheduled', 'approved')`,
       [doctorId]
     );
 
@@ -409,9 +391,6 @@ router.delete("/:id", authMiddleware, requireRole("admin"), async (req, res) => 
   }
 });
 
-/* ──────────────────────────────────────────────
-   PATCH /:id/restore  — unsuspend doctor
-   ────────────────────────────────────────────── */
 router.patch("/:id/restore", authMiddleware, requireRole("admin"), async (req, res) => {
   const doctorId = parseInt(req.params.id, 10);
   if (Number.isNaN(doctorId)) {
@@ -460,9 +439,6 @@ router.patch("/:id/restore", authMiddleware, requireRole("admin"), async (req, r
   }
 });
 
-/* ──────────────────────────────────────────────
-   GET /:id/appointments  — doctor's appointments
-   ────────────────────────────────────────────── */
 router.get(
   "/:id/appointments",
   authMiddleware,
@@ -506,9 +482,6 @@ router.get(
   }
 );
 
-/* ──────────────────────────────────────────────
-   GET /:id/patients  — doctor's patients (through wards)
-   ────────────────────────────────────────────── */
 router.get(
   "/:id/patients",
   authMiddleware,
@@ -544,9 +517,6 @@ router.get(
   }
 );
 
-/* ──────────────────────────────────────────────
-   GET /:id/wards  — doctor's assigned wards
-   ────────────────────────────────────────────── */
 router.get("/:id/wards", authMiddleware, ensureDoctorScope, async (req, res) => {
   try {
     const doctorId = req.params.id;
@@ -567,9 +537,6 @@ router.get("/:id/wards", authMiddleware, ensureDoctorScope, async (req, res) => 
   }
 });
 
-/* ──────────────────────────────────────────────
-   POST /:id/wards  — assign doctor to a ward (admin only)
-   ────────────────────────────────────────────── */
 router.post("/:id/wards", authMiddleware, requireRole("admin"), async (req, res) => {
   const doctorId = parseInt(req.params.id, 10);
   const wardId = parseInt(req.body.ward_id, 10);
@@ -579,7 +546,6 @@ router.post("/:id/wards", authMiddleware, requireRole("admin"), async (req, res)
   }
 
   try {
-    // Verify doctor exists and is active
     const doctorCheck = await pool.query(
       `SELECT d.id, u.id as user_id, u.name, COALESCE(u.active, true) as active
        FROM doctors d JOIN users u ON d.user_id = u.id WHERE d.id = $1`,
@@ -592,7 +558,6 @@ router.post("/:id/wards", authMiddleware, requireRole("admin"), async (req, res)
       return res.status(409).json({ message: "Cannot assign a suspended doctor to a ward" });
     }
 
-    // Verify ward exists and is active
     const wardCheck = await pool.query(`SELECT id, name FROM wards WHERE id = $1 AND active = true`, [wardId]);
     if (wardCheck.rowCount === 0) {
       return res.status(404).json({ message: "Ward not found or inactive" });
@@ -624,9 +589,6 @@ router.post("/:id/wards", authMiddleware, requireRole("admin"), async (req, res)
   }
 });
 
-/* ──────────────────────────────────────────────
-   DELETE /:id/wards/:wardId  — unassign doctor from ward (admin only)
-   ────────────────────────────────────────────── */
 router.delete("/:id/wards/:wardId", authMiddleware, requireRole("admin"), async (req, res) => {
   const doctorId = parseInt(req.params.id, 10);
   const wardId = parseInt(req.params.wardId, 10);

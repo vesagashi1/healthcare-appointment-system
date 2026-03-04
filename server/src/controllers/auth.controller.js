@@ -19,6 +19,30 @@ const hashRefreshToken = (token) =>
 
 const createRefreshToken = () => crypto.randomBytes(64).toString("hex");
 
+const ensureRoleProfile = async (userId, role) => {
+  if (role === "patient") {
+    await pool.query(
+      `
+      INSERT INTO patients (user_id)
+      VALUES ($1)
+      ON CONFLICT (user_id) DO NOTHING
+      `,
+      [userId],
+    );
+  }
+
+  if (role === "doctor") {
+    await pool.query(
+      `
+      INSERT INTO doctors (user_id, specialization)
+      VALUES ($1, 'General Medicine')
+      ON CONFLICT (user_id) DO NOTHING
+      `,
+      [userId],
+    );
+  }
+};
+
 const getRefreshTokenFromCookie = (req) => {
   const cookieHeader = req.headers.cookie;
   if (!cookieHeader) {
@@ -108,6 +132,8 @@ const register = async (req, res) => {
       `,
       [userId, roleId],
     );
+
+    await ensureRoleProfile(userId, role);
 
     res.status(201).json({
       message: "User registered successfully",

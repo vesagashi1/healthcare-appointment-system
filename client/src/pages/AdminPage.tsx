@@ -4,6 +4,8 @@ import api from '../services/api';
 import { Settings, Users, FileText, Shield, Filter, Calendar } from 'lucide-react';
 import { format } from 'date-fns';
 import styles from './AdminPage.module.css';
+import { useAuth } from '../contexts/AuthContext';
+import { useToast } from '../contexts/ToastContext';
 
 interface User {
   id: number;
@@ -26,12 +28,34 @@ interface AuditLog {
   created_at: string;
 }
 
+interface UserFormState {
+  name: string;
+  email: string;
+  role: string;
+  password: string;
+}
+
 const AdminPage = () => {
+  const { user } = useAuth();
+  const toast = useToast();
   const navigate = useNavigate();
+  const canAccessAdmin =
+    user?.role === 'admin' ||
+    (Array.isArray(user?.permissions) &&
+      (user.permissions.includes('VIEW_USERS') || user.permissions.includes('MANAGE_USERS')));
   const [users, setUsers] = useState<User[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [activeTab, setActiveTab] = useState<'users' | 'logs'>('users');
   const [loading, setLoading] = useState(true);
+  const [submittingUser, setSubmittingUser] = useState(false);
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [userForm, setUserForm] = useState<UserFormState>({
+    name: '',
+    email: '',
+    role: 'patient',
+    password: '',
+  });
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState({
     action: '',
@@ -55,6 +79,7 @@ const AdminPage = () => {
       setUsers(response.data.users || []);
     } catch (error) {
       console.error('Error fetching users:', error);
+      toast.error('Failed to fetch users');
     } finally {
       setLoading(false);
     }
@@ -74,8 +99,94 @@ const AdminPage = () => {
       setAuditLogs(response.data.logs || []);
     } catch (error) {
       console.error('Error fetching audit logs:', error);
+      toast.error('Failed to fetch audit logs');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const openCreateUser = () => {
+    setEditingUser(null);
+    setUserForm({
+      name: '',
+      email: '',
+      role: 'patient',
+      password: '',
+    });
+    setShowUserModal(true);
+  };
+
+  const openEditUser = (targetUser: User) => {
+    const primaryRole = (targetUser.roles || targetUser.role || 'patient').split(',')[0].trim();
+    setEditingUser(targetUser);
+    setUserForm({
+      name: targetUser.name,
+      email: targetUser.email,
+      role: primaryRole || 'patient',
+      password: '',
+    });
+    setShowUserModal(true);
+  };
+
+  const closeUserModal = () => {
+    if (submittingUser) return;
+    setShowUserModal(false);
+    setEditingUser(null);
+  };
+
+  const handleSaveUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userForm.name.trim() || !userForm.email.trim() || !userForm.role.trim()) {
+      toast.error('Name, email and role are required');
+      return;
+    }
+    if (!editingUser && userForm.password.length < 8) {
+      toast.error('Password must be at least 8 characters');
+      return;
+    }
+
+    setSubmittingUser(true);
+    try {
+      if (editingUser) {
+        await api.patch(`/admin/users/${editingUser.id}`, {
+          name: userForm.name.trim(),
+          email: userForm.email.trim(),
+          role: userForm.role,
+        });
+        toast.success('User updated successfully');
+      } else {
+        await api.post('/admin/users', {
+          name: userForm.name.trim(),
+          email: userForm.email.trim(),
+          password: userForm.password,
+          role: userForm.role,
+        });
+        toast.success('User created successfully');
+      }
+      closeUserModal();
+      await fetchUsers();
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Failed to save user');
+    } finally {
+      setSubmittingUser(false);
+    }
+  };
+
+  const handleDeleteUser = async (targetUser: User) => {
+    if (targetUser.id === user?.id) {
+      toast.error('You cannot delete your own account');
+      return;
+    }
+
+    const confirmed = window.confirm(`Delete user "${targetUser.name}"?`);
+    if (!confirmed) return;
+
+    try {
+      await api.delete(`/admin/users/${targetUser.id}`);
+      toast.success('User deleted successfully');
+      await fetchUsers();
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Failed to delete user');
     }
   };
 
@@ -119,6 +230,15 @@ const AdminPage = () => {
     }
   };
 
+  if (!canAccessAdmin) {
+    return (
+      <div className={styles.emptyState}>
+        <Shield className={styles.emptyIcon} />
+        <p className={styles.emptyText}>Admin access required.</p>
+      </div>
+    );
+  }
+
   if (loading && activeTab === 'users' && users.length === 0) {
     return (
       <div className={styles.loading}>
@@ -134,6 +254,11 @@ const AdminPage = () => {
           <Settings className={styles.headerIcon} />
           <h1 className={styles.title}>Admin Panel</h1>
         </div>
+        {activeTab === 'users' && (
+          <button className={styles.primaryBtn} onClick={openCreateUser}>
+            Create User
+          </button>
+        )}
       </div>
 
       <div className={styles.tabs}>
@@ -168,24 +293,42 @@ const AdminPage = () => {
                     <th>User</th>
                     <th>Role</th>
                     <th>Created</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {users.map((user) => (
-                    <tr key={user.id}>
+                  {users.map((rowUser) => (
+                    <tr key={rowUser.id}>
                       <td>
                         <div className={styles.userInfo}>
-                          <div className={styles.userName}>{user.name}</div>
-                          <div className={styles.userEmail}>{user.email}</div>
+                          <div className={styles.userName}>{rowUser.name}</div>
+                          <div className={styles.userEmail}>{rowUser.email}</div>
                         </div>
                       </td>
                       <td>
-                        <span className={`${styles.roleBadge} ${getRoleColor(user.roles || user.role || '')}`}>
-                          {user.roles || user.role || 'unknown'}
+                        <span className={`${styles.roleBadge} ${getRoleColor(rowUser.roles || rowUser.role || '')}`}>
+                          {rowUser.roles || rowUser.role || 'unknown'}
                         </span>
                       </td>
                       <td className={styles.date}>
-                        {format(new Date(user.created_at), 'PP')}
+                        {format(new Date(rowUser.created_at), 'PP')}
+                      </td>
+                      <td>
+                        <div className={styles.actionButtons}>
+                          <button
+                            className={styles.rowActionBtn}
+                            onClick={() => openEditUser(rowUser)}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            className={`${styles.rowActionBtn} ${styles.rowActionDanger}`}
+                            onClick={() => handleDeleteUser(rowUser)}
+                            disabled={rowUser.id === user?.id}
+                          >
+                            Delete
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -307,6 +450,75 @@ const AdminPage = () => {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {showUserModal && (
+        <div className={styles.modalOverlay} onClick={closeUserModal}>
+          <div className={styles.modalCard} onClick={(e) => e.stopPropagation()}>
+            <h2 className={styles.modalTitle}>{editingUser ? 'Edit User' : 'Create User'}</h2>
+            <form onSubmit={handleSaveUser} className={styles.modalForm}>
+              <div className={styles.filterField}>
+                <label className={styles.filterLabel}>Name</label>
+                <input
+                  className={styles.filterInput}
+                  value={userForm.name}
+                  onChange={(e) => setUserForm((prev) => ({ ...prev, name: e.target.value }))}
+                  required
+                />
+              </div>
+              <div className={styles.filterField}>
+                <label className={styles.filterLabel}>Email</label>
+                <input
+                  type="email"
+                  className={styles.filterInput}
+                  value={userForm.email}
+                  onChange={(e) => setUserForm((prev) => ({ ...prev, email: e.target.value }))}
+                  required
+                />
+              </div>
+              <div className={styles.filterField}>
+                <label className={styles.filterLabel}>Role</label>
+                <select
+                  className={styles.filterInput}
+                  value={userForm.role}
+                  onChange={(e) => setUserForm((prev) => ({ ...prev, role: e.target.value }))}
+                >
+                  <option value="admin">admin</option>
+                  <option value="doctor">doctor</option>
+                  <option value="nurse">nurse</option>
+                  <option value="patient">patient</option>
+                  <option value="caregiver">caregiver</option>
+                </select>
+              </div>
+              {!editingUser && (
+                <div className={styles.filterField}>
+                  <label className={styles.filterLabel}>Password</label>
+                  <input
+                    type="password"
+                    className={styles.filterInput}
+                    value={userForm.password}
+                    onChange={(e) => setUserForm((prev) => ({ ...prev, password: e.target.value }))}
+                    minLength={8}
+                    required
+                  />
+                </div>
+              )}
+              <div className={styles.modalActions}>
+                <button
+                  type="button"
+                  className={styles.secondaryBtn}
+                  onClick={closeUserModal}
+                  disabled={submittingUser}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className={styles.primaryBtn} disabled={submittingUser}>
+                  {submittingUser ? 'Saving...' : editingUser ? 'Save Changes' : 'Create User'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

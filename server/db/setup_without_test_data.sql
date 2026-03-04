@@ -23,6 +23,12 @@ CREATE DATABASE healthcare_db;
 -- 4. Add ward soft-delete flag
 \i db/migrations/007_add_ward_active.sql
 
+-- 5. Enhance RBAC permissions and mappings
+\i db/migrations/008_enhance_rbac_permissions.sql
+
+-- 6. Appointment request -> schedule approval flow
+\i db/migrations/009_appointment_request_flow.sql
+
 -- ============================================
 -- Setup Complete (without test data)
 -- ============================================

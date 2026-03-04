@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
+import { useToast } from '../contexts/ToastContext';
 import { Calendar, Plus, Check, X, Clock } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -15,6 +16,7 @@ interface Appointment {
 
 const AppointmentsPage = () => {
   const { user } = useAuth();
+  const toast = useToast();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [doctors, setDoctors] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,6 +39,7 @@ const AppointmentsPage = () => {
       setAppointments(response.data.appointments || []);
     } catch (error) {
       console.error('Error fetching appointments:', error);
+      toast.error('Failed to load appointments');
     } finally {
       setLoading(false);
     }
@@ -48,6 +51,7 @@ const AppointmentsPage = () => {
       setDoctors(response.data.doctors || []);
     } catch (error) {
       console.error('Error fetching doctors:', error);
+      toast.error('Failed to load doctors');
     }
   };
 
@@ -57,40 +61,45 @@ const AppointmentsPage = () => {
       await api.post('/appointments', newAppointment);
       setShowCreateModal(false);
       setNewAppointment({ doctor_id: '', appointment_date: '' });
+      toast.success('Appointment request sent');
       fetchAppointments();
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Failed to create appointment');
+      toast.error(error.response?.data?.message || 'Failed to create appointment');
     }
   };
 
   const handleApprove = async (id: number) => {
     try {
       await api.patch(`/appointments/${id}/approve`);
+      toast.success('Appointment approved');
       fetchAppointments();
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Failed to approve appointment');
+      toast.error(error.response?.data?.message || 'Failed to approve appointment');
     }
   };
 
   const handleCancel = async (id: number) => {
     try {
       await api.patch(`/appointments/${id}/cancel`);
+      toast.success('Appointment cancelled');
       fetchAppointments();
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Failed to cancel appointment');
+      toast.error(error.response?.data?.message || 'Failed to cancel appointment');
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'approved':
+      case 'scheduled':
         return 'bg-green-500/15 text-green-200 border border-green-500/30';
+      case 'requested':
+        return 'bg-yellow-500/15 text-yellow-200 border border-yellow-500/30';
       case 'cancelled':
         return 'bg-red-500/15 text-red-200 border border-red-500/30';
       case 'completed':
         return 'bg-blue-500/15 text-blue-200 border border-blue-500/30';
       default:
-        return 'bg-yellow-500/15 text-yellow-200 border border-yellow-500/30';
+        return 'bg-slate-500/15 text-slate-200 border border-slate-500/30';
     }
   };
 
@@ -112,7 +121,7 @@ const AppointmentsPage = () => {
             className="btn-primary flex items-center"
           >
             <Plus className="mr-2 h-5 w-5" />
-            Book Appointment
+            Request Appointment
           </button>
         )}
       </div>
@@ -153,11 +162,11 @@ const AppointmentsPage = () => {
                   </span>
                 </div>
                 <div className="flex gap-2">
-                  {user?.role === 'doctor' && appointment.status === 'scheduled' && (
+                  {user?.role === 'doctor' && appointment.status === 'requested' && (
                     <button
                       onClick={() => handleApprove(appointment.id)}
                       className="p-2 bg-green-500/15 text-green-200 border border-green-500/30 rounded-lg hover:bg-green-500/25"
-                      title="Approve"
+                      title="Approve & Schedule"
                     >
                       <Check className="h-5 w-5" />
                     </button>
@@ -184,12 +193,17 @@ const AppointmentsPage = () => {
       {showCreateModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-slate-900 border border-slate-700/60 text-slate-100 rounded-lg p-6 w-full max-w-md">
-            <h2 className="text-2xl font-bold mb-4">Book New Appointment</h2>
+            <h2 className="text-2xl font-bold mb-4">Request New Appointment</h2>
             <form onSubmit={handleCreateAppointment} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-slate-200 mb-2">
                   Doctor
                 </label>
+                {doctors.length === 0 && (
+                  <p className="mb-2 text-xs text-amber-200">
+                    No doctors available right now. Please try again later.
+                  </p>
+                )}
                 <select
                   value={newAppointment.doctor_id}
                   onChange={(e) =>
@@ -197,6 +211,7 @@ const AppointmentsPage = () => {
                   }
                   className="input-field"
                   required
+                  disabled={doctors.length === 0}
                 >
                   <option value="">Select a doctor</option>
                   {doctors.map((doctor) => (
@@ -221,8 +236,8 @@ const AppointmentsPage = () => {
                 />
               </div>
               <div className="flex gap-3">
-                <button type="submit" className="flex-1 btn-primary">
-                  Book Appointment
+                <button type="submit" className="flex-1 btn-primary" disabled={doctors.length === 0}>
+                  Send Request
                 </button>
                 <button
                   type="button"

@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import api from '../services/api';
 import { requestWithRetry } from '../services/request';
 import { useToast } from '../contexts/ToastContext';
+import { useAuth } from '../contexts/AuthContext';
 
-const SEARCH_ENTITIES = ['patients', 'doctors', 'appointments', 'records', 'users'] as const;
-type SearchEntity = (typeof SEARCH_ENTITIES)[number];
+type SearchEntity = 'patients' | 'doctors' | 'appointments' | 'records' | 'users';
 
 type SortOption = {
   value: string;
@@ -60,6 +60,7 @@ const SkeletonList = () => (
 );
 
 const AdvancedSearchPage = () => {
+  const { user } = useAuth();
   const toast = useToast();
   const [entity, setEntity] = useState<SearchEntity>('patients');
   const [query, setQuery] = useState('');
@@ -78,6 +79,19 @@ const AdvancedSearchPage = () => {
 
   const [wards, setWards] = useState<any[]>([]);
 
+  const hasPermission = (permission: string) =>
+    Array.isArray(user?.permissions) && user.permissions.includes(permission);
+
+  const allowedEntities = useMemo(() => {
+    const allowed: SearchEntity[] = [];
+    if (hasPermission('VIEW_PATIENT_LIST') || hasPermission('VIEW_PATIENT_RECORD')) allowed.push('patients');
+    if (hasPermission('VIEW_DOCTOR')) allowed.push('doctors');
+    if (hasPermission('VIEW_APPOINTMENT')) allowed.push('appointments');
+    if (hasPermission('VIEW_PATIENT_RECORD')) allowed.push('records');
+    if (hasPermission('VIEW_USERS')) allowed.push('users');
+    return allowed;
+  }, [user]);
+
   useEffect(() => {
     const timer = window.setTimeout(() => {
       setDebouncedQuery(query.trim());
@@ -86,10 +100,20 @@ const AdvancedSearchPage = () => {
   }, [query]);
 
   useEffect(() => {
+    if (allowedEntities.length === 0) return;
+
+    if (!allowedEntities.includes(entity)) {
+      const fallback = allowedEntities[0];
+      setEntity(fallback);
+      setSortBy(SORT_OPTIONS[fallback][0]?.value || 'created_at');
+      setPage(1);
+      return;
+    }
+
     const firstSort = SORT_OPTIONS[entity][0]?.value || 'created_at';
     setSortBy(firstSort);
     setPage(1);
-  }, [entity]);
+  }, [entity, allowedEntities]);
 
   useEffect(() => {
     const loadWards = async () => {
@@ -145,6 +169,14 @@ const AdvancedSearchPage = () => {
 
   const totalPages = Math.max(Math.ceil(count / PAGE_SIZE), 1);
 
+  if (allowedEntities.length === 0) {
+    return (
+      <div className="card text-center text-slate-300">
+        You do not have permission to use advanced search.
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -159,7 +191,7 @@ const AdvancedSearchPage = () => {
           <div>
             <label className="mb-1 block text-sm text-slate-300">Entity</label>
             <select className="input-field" value={entity} onChange={(e) => setEntity(e.target.value as SearchEntity)}>
-              {SEARCH_ENTITIES.map((item) => (
+              {allowedEntities.map((item) => (
                 <option key={item} value={item}>
                   {item}
                 </option>
@@ -218,8 +250,8 @@ const AdvancedSearchPage = () => {
               <label className="mb-1 block text-sm text-slate-300">Status</label>
               <select className="input-field" value={status} onChange={(e) => setStatus(e.target.value)}>
                 <option value="">All statuses</option>
+                <option value="requested">requested</option>
                 <option value="scheduled">scheduled</option>
-                <option value="approved">approved</option>
                 <option value="cancelled">cancelled</option>
                 <option value="completed">completed</option>
                 <option value="no_show">no_show</option>

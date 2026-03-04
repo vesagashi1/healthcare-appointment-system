@@ -1,13 +1,36 @@
 const express = require("express");
 const authMiddleware = require("../middlewares/auth.middleware");
-const requireRole = require("../middlewares/role.middleware");
+const hasPermission = require("../middlewares/permission.middleware");
 const bcrypt = require("bcrypt");
 const pool = require("../config/db");
 
 const router = express.Router();
 
-// All admin routes require admin role
-router.use(authMiddleware, requireRole("admin"));
+router.use(authMiddleware);
+
+const ensureRoleProfile = async (userId, role) => {
+  if (role === "patient") {
+    await pool.query(
+      `
+      INSERT INTO patients (user_id)
+      VALUES ($1)
+      ON CONFLICT (user_id) DO NOTHING
+      `,
+      [userId]
+    );
+  }
+
+  if (role === "doctor") {
+    await pool.query(
+      `
+      INSERT INTO doctors (user_id, specialization)
+      VALUES ($1, 'General Medicine')
+      ON CONFLICT (user_id) DO NOTHING
+      `,
+      [userId]
+    );
+  }
+};
 
 /**
  * GET all users
@@ -15,6 +38,7 @@ router.use(authMiddleware, requireRole("admin"));
  */
 router.get(
   "/users",
+  hasPermission("VIEW_USERS"),
   async (req, res) => {
     try {
       const { role, name, email } = req.query;
@@ -72,6 +96,7 @@ router.get(
  */
 router.get(
   "/users/:id",
+  hasPermission("VIEW_USERS"),
   async (req, res) => {
     try {
       const userId = req.params.id;
@@ -131,6 +156,7 @@ router.get(
  */
 router.post(
   "/users",
+  hasPermission("MANAGE_USERS"),
   async (req, res) => {
     try {
       const { name, email, password, role } = req.body;
@@ -184,6 +210,8 @@ router.post(
         [userId, roleId]
       );
 
+      await ensureRoleProfile(userId, role);
+
       res.status(201).json({
         message: "User created successfully",
         user: {
@@ -204,6 +232,7 @@ router.post(
  */
 router.patch(
   "/users/:id",
+  hasPermission("MANAGE_USERS"),
   async (req, res) => {
     try {
       const userId = req.params.id;
@@ -276,6 +305,8 @@ router.patch(
           `INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)`,
           [userId, roleId]
         );
+
+        await ensureRoleProfile(userId, role);
       }
 
       // Get updated user
@@ -313,6 +344,7 @@ router.patch(
  */
 router.delete(
   "/users/:id",
+  hasPermission("MANAGE_USERS"),
   async (req, res) => {
     try {
       const userId = req.params.id;
@@ -353,6 +385,7 @@ router.delete(
  */
 router.get(
   "/audit-logs",
+  hasPermission("VIEW_AUDIT_LOGS"),
   async (req, res) => {
     try {
       const { user_id, action, start_date, end_date, limit = 100 } = req.query;
