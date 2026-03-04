@@ -43,10 +43,13 @@ SET search_path TO public;
 -- 7. Add ward soft-delete flag
 \i db/migrations/007_add_ward_active.sql
 
--- 8. Enhance RBAC permissions and mappings
+-- 8. Add user soft-delete flag
+\i db/migrations/008_add_user_active.sql
+
+-- 9. Enhance RBAC permissions and mappings
 \i db/migrations/008_enhance_rbac_permissions.sql
 
--- 9. Appointment request -> schedule approval flow
+-- 10. Appointment request -> schedule approval flow
 \i db/migrations/009_appointment_request_flow.sql
 
 -- ============================================
