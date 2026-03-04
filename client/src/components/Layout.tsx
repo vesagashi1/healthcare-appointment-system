@@ -16,6 +16,8 @@ import {
   X,
   Bell,
   Check,
+  Search,
+  BarChart3,
 } from 'lucide-react';
 import styles from './Layout.module.css';
 import { getAccessToken } from '../services/api';
@@ -53,6 +55,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const canSeeCaregiversNav =
     user?.role === 'admin' || hasPermission('MANAGE_USERS');
+  const canSeeReportsNav = user?.role === 'admin' || user?.role === 'doctor' || user?.role === 'nurse';
 
   const handleLogout = () => {
     logout();
@@ -156,6 +159,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { name: 'Wards', href: '/wards', icon: Building2 },
     { name: 'Records', href: '/records', icon: FileText },
     { name: 'Export/Import', href: '/export-import', icon: Download },
+    { name: 'Advanced Search', href: '/search', icon: Search },
+    ...(canSeeReportsNav ? [{ name: 'Reports', href: '/reports', icon: BarChart3 }] : []),
   ];
 
   if (user?.role === 'admin') {

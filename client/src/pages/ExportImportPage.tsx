@@ -1,8 +1,11 @@
 import { useState } from 'react';
 import api from '../services/api';
 import { Download, Upload, FileText, CheckCircle, AlertCircle } from 'lucide-react';
+import { requestWithRetry } from '../services/request';
+import { useToast } from '../contexts/ToastContext';
 
 const ExportImportPage = () => {
+  const toast = useToast();
   const [exportType, setExportType] = useState<'patients' | 'appointments' | 'records'>('patients');
   const [exportFormat, setExportFormat] = useState<'json' | 'csv' | 'xlsx'>('json');
   const [importType, setImportType] = useState<'patients' | 'appointments' | 'records'>('patients');
@@ -14,10 +17,12 @@ const ExportImportPage = () => {
     setLoading(true);
     setMessage(null);
     try {
-      const response = await api.get(`/export/${exportType}`, {
-        params: { format: exportFormat },
-        responseType: 'blob',
-      });
+      const response = await requestWithRetry(() =>
+        api.get(`/export/${exportType}`, {
+          params: { format: exportFormat },
+          responseType: 'blob',
+        })
+      );
 
       const blob = new Blob([response.data]);
       const url = window.URL.createObjectURL(blob);
@@ -30,11 +35,13 @@ const ExportImportPage = () => {
       window.URL.revokeObjectURL(url);
 
       setMessage({ type: 'success', text: `Exported ${exportType} successfully!` });
+      toast.success(`Exported ${exportType} as ${exportFormat.toUpperCase()}`);
     } catch (error: any) {
       setMessage({
         type: 'error',
         text: error.response?.data?.message || 'Export failed',
       });
+      toast.error(error.response?.data?.message || 'Export failed');
     } finally {
       setLoading(false);
     }
@@ -53,14 +60,13 @@ const ExportImportPage = () => {
     formData.append('file', importFile);
 
     try {
-      const response = await api.post(`/import/${importType}`, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-
-      console.log('Import response:', response);
-      console.log('Import response.data:', response.data);
+      const response = await requestWithRetry(() =>
+        api.post(`/import/${importType}`, formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        })
+      );
       
       // Handle both direct response.data and nested structures
       const responseData = response.data || {};
@@ -68,8 +74,6 @@ const ExportImportPage = () => {
       const failed = responseData.failed ?? 0;
       const total = responseData.total ?? 0;
       const results = responseData.results || {};
-      
-      console.log('Parsed values:', { successful, failed, total });
       
       if (failed > 0) {
         // Show errors if any
@@ -81,16 +85,19 @@ const ExportImportPage = () => {
           type: 'error',
           text: `Imported ${successful}/${total} ${importType}. ${failed} failed. ${errorDetails}`,
         });
+        toast.error(`Imported ${successful}/${total} ${importType}. ${failed} failed.`);
       } else if (successful > 0) {
         setMessage({
           type: 'success',
           text: `✓ Imported ${successful} ${importType} successfully!`,
         });
+        toast.success(`Imported ${successful} ${importType} successfully`);
       } else {
         setMessage({
           type: 'error',
           text: `No ${importType} were imported. Check the file format and try again. Response: ${JSON.stringify(responseData)}`,
         });
+        toast.error(`No ${importType} were imported`);
       }
       setImportFile(null);
     } catch (error: any) {
@@ -98,6 +105,7 @@ const ExportImportPage = () => {
         type: 'error',
         text: error.response?.data?.message || 'Import failed',
       });
+      toast.error(error.response?.data?.message || 'Import failed');
     } finally {
       setLoading(false);
     }

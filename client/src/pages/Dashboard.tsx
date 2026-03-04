@@ -126,6 +126,16 @@ const Dashboard = () => {
               <TrendingUp className={styles.actionIcon} />
               <span>Export/Import Data</span>
             </Link>
+            <Link to="/search" className={styles.actionItem}>
+              <TrendingUp className={styles.actionIcon} />
+              <span>Advanced Search</span>
+            </Link>
+            {(user?.role === 'admin' || user?.role === 'doctor' || user?.role === 'nurse') && (
+              <Link to="/reports" className={styles.actionItem}>
+                <FileText className={styles.actionIcon} />
+                <span>Reports</span>
+              </Link>
+            )}
             {user?.role === 'admin' && (
               <Link to="/admin" className={styles.actionItem}>
                 <FileText className={styles.actionIcon} />

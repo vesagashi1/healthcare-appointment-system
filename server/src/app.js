@@ -16,6 +16,8 @@ const caregiverRoutes = require("./routes/caregiver.routes");
 const exportRoutes = require("./routes/export.routes");
 const importRoutes = require("./routes/import.routes");
 const notificationRoutes = require("./routes/notification.routes");
+const searchRoutes = require("./routes/search.routes");
+const reportsRoutes = require("./routes/reports.routes");
 
 const app = express();
 const server = http.createServer(app);
@@ -47,6 +49,8 @@ app.use("/api/caregivers", caregiverRoutes);
 app.use("/api/export", exportRoutes);
 app.use("/api/import", importRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/search", searchRoutes);
+app.use("/api/reports", reportsRoutes);
 
 
 

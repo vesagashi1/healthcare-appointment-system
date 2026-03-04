@@ -19,7 +19,10 @@ import CaregiverPatientsPage from "./pages/CaregiverPatientsPage";
 import CaregiversPage from "./pages/CaregiversPage";
 import NursesPage from "./pages/NursesPage";
 import WardsPage from "./pages/WardsPage";
+import AdvancedSearchPage from "./pages/AdvancedSearchPage";
+import ReportsPage from "./pages/ReportsPage";
 import Layout from "./components/Layout";
+import { ToastProvider } from "./contexts/ToastContext";
 
 const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({
   children,
@@ -122,6 +125,28 @@ function AppRoutes() {
       />
 
       <Route
+        path="/search"
+        element={
+          <PrivateRoute>
+            <Layout>
+              <AdvancedSearchPage />
+            </Layout>
+          </PrivateRoute>
+        }
+      />
+
+      <Route
+        path="/reports"
+        element={
+          <PrivateRoute>
+            <Layout>
+              <ReportsPage />
+            </Layout>
+          </PrivateRoute>
+        }
+      />
+
+      <Route
         path="/admin"
         element={
           <PrivateRoute>
@@ -170,11 +195,13 @@ function AppRoutes() {
 
 function App() {
   return (
-    <AuthProvider>
-      <Router>
-        <AppRoutes />
-      </Router>
-    </AuthProvider>
+    <ToastProvider>
+      <AuthProvider>
+        <Router>
+          <AppRoutes />
+        </Router>
+      </AuthProvider>
+    </ToastProvider>
   );
 }
 
