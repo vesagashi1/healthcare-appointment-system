@@ -17,6 +17,7 @@ import PatientRecordsPage from "./pages/PatientRecordsPage";
 import AdminPage from "./pages/AdminPage";
 import CaregiverPatientsPage from "./pages/CaregiverPatientsPage";
 import CaregiversPage from "./pages/CaregiversPage";
+import NursesPage from "./pages/NursesPage";
 import WardsPage from "./pages/WardsPage";
 import Layout from "./components/Layout";
 
@@ -148,6 +149,17 @@ function AppRoutes() {
           <PrivateRoute>
             <Layout>
               <CaregiversPage />
+            </Layout>
+          </PrivateRoute>
+        }
+      />
+
+      <Route
+        path="/nurses"
+        element={
+          <PrivateRoute>
+            <Layout>
+              <NursesPage />
             </Layout>
           </PrivateRoute>
         }
