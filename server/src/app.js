@@ -1,4 +1,4 @@
-require("dotenv").config(); 
+require("dotenv").config();
 
 const express = require("express");
 const cors = require("cors");
@@ -37,7 +37,7 @@ app.use(
       }
     },
     credentials: true,
-  })
+  }),
 );
 app.use(express.json());
 
@@ -72,7 +72,10 @@ app.use((req, res) => {
 app.use((err, req, res, next) => {
   console.error("UNHANDLED ERROR:", err);
   res.status(err.status || 500).json({
-    message: process.env.NODE_ENV === "production" ? "Internal server error" : err.message || "Internal server error",
+    message:
+      process.env.NODE_ENV === "production"
+        ? "Internal server error"
+        : err.message || "Internal server error",
   });
 });
 
@@ -85,8 +88,6 @@ process.on("uncaughtException", (err) => {
   console.error("Uncaught Exception:", err);
   process.exit(1);
 });
-
-
 
 const PORT = process.env.PORT || 5001;
 initSocket(server);

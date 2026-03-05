@@ -20,7 +20,7 @@ const authMiddleware = async (req, res, next) => {
     // Check user still exists and is active
     const userCheck = await pool.query(
       `SELECT id, active FROM users WHERE id = $1`,
-      [decoded.id]
+      [decoded.id],
     );
 
     if (userCheck.rowCount === 0) {

@@ -1,9 +1,15 @@
-import { useEffect, useState } from 'react';
-import { useAuth } from '../contexts/AuthContext';
-import api from '../services/api';
-import { Calendar, Users, Stethoscope, FileText, TrendingUp } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import styles from './Dashboard.module.css';
+import { useEffect, useState } from "react";
+import { useAuth } from "../contexts/AuthContext";
+import api from "../services/api";
+import {
+  Calendar,
+  Users,
+  Stethoscope,
+  FileText,
+  TrendingUp,
+} from "lucide-react";
+import { Link } from "react-router-dom";
+import styles from "./Dashboard.module.css";
 
 interface DashboardStats {
   appointments: number;
@@ -25,33 +31,42 @@ const Dashboard = () => {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const [appointmentsRes, patientsRes, doctorsRes, recordsRes] = await Promise.allSettled([
-          api.get('/appointments/my-appointments/list'),
-          api.get('/patients'),
-          api.get('/doctors'),
-          api.get('/patients/my-profile/records'),
-        ]);
+        const [appointmentsRes, patientsRes, doctorsRes, recordsRes] =
+          await Promise.allSettled([
+            api.get("/appointments/my-appointments/list"),
+            api.get("/patients"),
+            api.get("/doctors"),
+            api.get("/patients/my-profile/records"),
+          ]);
 
         setStats({
           appointments:
-            appointmentsRes.status === 'fulfilled'
-              ? (Array.isArray(appointmentsRes.value.data) ? appointmentsRes.value.data.length : appointmentsRes.value.data.count || 0)
+            appointmentsRes.status === "fulfilled"
+              ? Array.isArray(appointmentsRes.value.data)
+                ? appointmentsRes.value.data.length
+                : appointmentsRes.value.data.count || 0
               : 0,
           patients:
-            patientsRes.status === 'fulfilled'
-              ? (Array.isArray(patientsRes.value.data) ? patientsRes.value.data.length : patientsRes.value.data.count || 0)
+            patientsRes.status === "fulfilled"
+              ? Array.isArray(patientsRes.value.data)
+                ? patientsRes.value.data.length
+                : patientsRes.value.data.count || 0
               : 0,
           doctors:
-            doctorsRes.status === 'fulfilled'
-              ? (Array.isArray(doctorsRes.value.data) ? doctorsRes.value.data.length : doctorsRes.value.data.count || 0)
+            doctorsRes.status === "fulfilled"
+              ? Array.isArray(doctorsRes.value.data)
+                ? doctorsRes.value.data.length
+                : doctorsRes.value.data.count || 0
               : 0,
           records:
-            recordsRes.status === 'fulfilled'
-              ? (Array.isArray(recordsRes.value.data) ? recordsRes.value.data.length : recordsRes.value.data.count || 0)
+            recordsRes.status === "fulfilled"
+              ? Array.isArray(recordsRes.value.data)
+                ? recordsRes.value.data.length
+                : recordsRes.value.data.count || 0
               : 0,
         });
       } catch (error) {
-        console.error('Error fetching stats:', error);
+        console.error("Error fetching stats:", error);
       } finally {
         setLoading(false);
       }
@@ -62,32 +77,32 @@ const Dashboard = () => {
 
   const statCards = [
     {
-      name: 'My Appointments',
+      name: "My Appointments",
       value: stats.appointments,
       icon: Calendar,
-      color: 'statIconBlue',
-      href: '/appointments',
+      color: "statIconBlue",
+      href: "/appointments",
     },
     {
-      name: 'Patients',
+      name: "Patients",
       value: stats.patients,
       icon: Users,
-      color: 'statIconGreen',
-      href: '/patients',
+      color: "statIconGreen",
+      href: "/patients",
     },
     {
-      name: 'Doctors',
+      name: "Doctors",
       value: stats.doctors,
       icon: Stethoscope,
-      color: 'statIconPurple',
-      href: '/doctors',
+      color: "statIconPurple",
+      href: "/doctors",
     },
     {
-      name: 'Records',
+      name: "Records",
       value: stats.records,
       icon: FileText,
-      color: 'statIconOrange',
-      href: '/records',
+      color: "statIconOrange",
+      href: "/records",
     },
   ];
 
@@ -141,13 +156,15 @@ const Dashboard = () => {
               <TrendingUp className={styles.actionIcon} />
               <span>Advanced Search</span>
             </Link>
-            {(user?.role === 'admin' || user?.role === 'doctor' || user?.role === 'nurse') && (
+            {(user?.role === "admin" ||
+              user?.role === "doctor" ||
+              user?.role === "nurse") && (
               <Link to="/reports" className={styles.actionItem}>
                 <FileText className={styles.actionIcon} />
                 <span>Reports</span>
               </Link>
             )}
-            {user?.role === 'admin' && (
+            {user?.role === "admin" && (
               <Link to="/admin" className={styles.actionItem}>
                 <FileText className={styles.actionIcon} />
                 <span>Admin Panel</span>

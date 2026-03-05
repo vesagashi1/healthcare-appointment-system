@@ -2,7 +2,9 @@ const express = require("express");
 const authMiddleware = require("../middlewares/auth.middleware");
 const hasPermission = require("../middlewares/permission.middleware");
 const pool = require("../config/db");
-const { createNotificationsForUsers } = require("../services/notification.service");
+const {
+  createNotificationsForUsers,
+} = require("../services/notification.service");
 
 const router = express.Router();
 
@@ -14,7 +16,7 @@ const listUserIdsForRole = async (roleName) => {
     JOIN roles r ON ur.role_id = r.id
     WHERE r.name = $1
     `,
-    [roleName]
+    [roleName],
   );
   return result.rows.map((row) => row.id);
 };
@@ -58,7 +60,7 @@ router.get(
         LEFT JOIN users n ON nw.nurse_id = n.id
         GROUP BY w.id, w.name, w.active
         ORDER BY w.active DESC, w.name ASC
-        `
+        `,
       );
 
       res.json({
@@ -70,7 +72,7 @@ router.get(
       console.error("GET WARDS ERROR:", err);
       res.status(500).json({ message: "Server error" });
     }
-  }
+  },
 );
 
 /**
@@ -89,7 +91,7 @@ router.get(
       // Get ward basic info
       const wardResult = await pool.query(
         `SELECT id, name, active FROM wards WHERE id = $1`,
-        [wardId]
+        [wardId],
       );
 
       if (wardResult.rowCount === 0) {
@@ -111,7 +113,7 @@ router.get(
         WHERE p.ward_id = $1
         ORDER BY u.name ASC
         `,
-        [wardId]
+        [wardId],
       );
 
       // Get doctors assigned to ward
@@ -129,7 +131,7 @@ router.get(
         WHERE dw.ward_id = $1
         ORDER BY u.name ASC
         `,
-        [wardId]
+        [wardId],
       );
 
       // Get nurses assigned to ward
@@ -144,7 +146,7 @@ router.get(
         WHERE nw.ward_id = $1
         ORDER BY u.name ASC
         `,
-        [wardId]
+        [wardId],
       );
 
       res.json({
@@ -181,7 +183,7 @@ router.get(
       console.error("GET WARD ERROR:", err);
       res.status(500).json({ message: "Server error" });
     }
-  }
+  },
 );
 
 /**
@@ -201,7 +203,7 @@ router.patch(
     try {
       const wardResult = await pool.query(
         `SELECT id, name, active FROM wards WHERE id = $1`,
-        [wardId]
+        [wardId],
       );
 
       if (wardResult.rowCount === 0) {
@@ -222,18 +224,19 @@ router.patch(
           AND name = $1
           AND id <> $2
         `,
-        [ward.name, wardId]
+        [ward.name, wardId],
       );
 
       if (nameConflict.rowCount > 0) {
         return res.status(409).json({
-          message: "Cannot restore ward because another active ward already has this name",
+          message:
+            "Cannot restore ward because another active ward already has this name",
         });
       }
 
       const update = await pool.query(
         `UPDATE wards SET active = true WHERE id = $1 RETURNING id, name, active`,
-        [wardId]
+        [wardId],
       );
 
       try {
@@ -242,10 +245,16 @@ router.patch(
           type: "WARD_RESTORED",
           title: "Ward Restored",
           message: `Ward "${update.rows[0].name}" was restored`,
-          metadata: { ward_id: update.rows[0].id, ward_name: update.rows[0].name },
+          metadata: {
+            ward_id: update.rows[0].id,
+            ward_name: update.rows[0].name,
+          },
         });
       } catch (notificationErr) {
-        console.error("RESTORE WARD NOTIFICATION ERROR:", notificationErr.message);
+        console.error(
+          "RESTORE WARD NOTIFICATION ERROR:",
+          notificationErr.message,
+        );
       }
 
       return res.json({
@@ -256,7 +265,7 @@ router.patch(
       console.error("RESTORE WARD ERROR:", err);
       return res.status(500).json({ message: "Server error" });
     }
-  }
+  },
 );
 
 /**
@@ -280,7 +289,7 @@ router.post(
       // Check if ward already exists
       const existing = await pool.query(
         `SELECT id FROM wards WHERE name = $1 AND active = true`,
-        [name]
+        [name],
       );
 
       if (existing.rowCount > 0) {
@@ -291,7 +300,7 @@ router.post(
 
       const result = await pool.query(
         `INSERT INTO wards (name, active) VALUES ($1, true) RETURNING *`,
-        [name]
+        [name],
       );
 
       try {
@@ -300,10 +309,16 @@ router.post(
           type: "WARD_CREATED",
           title: "Ward Created",
           message: `Ward "${result.rows[0].name}" was created`,
-          metadata: { ward_id: result.rows[0].id, ward_name: result.rows[0].name },
+          metadata: {
+            ward_id: result.rows[0].id,
+            ward_name: result.rows[0].name,
+          },
         });
       } catch (notificationErr) {
-        console.error("CREATE WARD NOTIFICATION ERROR:", notificationErr.message);
+        console.error(
+          "CREATE WARD NOTIFICATION ERROR:",
+          notificationErr.message,
+        );
       }
 
       res.status(201).json({
@@ -314,7 +329,7 @@ router.post(
       console.error("CREATE WARD ERROR:", err);
       res.status(500).json({ message: "Server error" });
     }
-  }
+  },
 );
 
 /**
@@ -339,7 +354,7 @@ router.patch(
       // Check if ward exists
       const check = await pool.query(
         `SELECT id FROM wards WHERE id = $1 AND active = true`,
-        [wardId]
+        [wardId],
       );
 
       if (check.rowCount === 0) {
@@ -349,7 +364,7 @@ router.patch(
       // Check if name already exists (excluding current ward)
       const existing = await pool.query(
         `SELECT id FROM wards WHERE name = $1 AND id != $2 AND active = true`,
-        [name, wardId]
+        [name, wardId],
       );
 
       if (existing.rowCount > 0) {
@@ -360,7 +375,7 @@ router.patch(
 
       const result = await pool.query(
         `UPDATE wards SET name = $1 WHERE id = $2 RETURNING *`,
-        [name, wardId]
+        [name, wardId],
       );
 
       try {
@@ -369,10 +384,16 @@ router.patch(
           type: "WARD_UPDATED",
           title: "Ward Updated",
           message: `Ward was renamed to "${result.rows[0].name}"`,
-          metadata: { ward_id: result.rows[0].id, ward_name: result.rows[0].name },
+          metadata: {
+            ward_id: result.rows[0].id,
+            ward_name: result.rows[0].name,
+          },
         });
       } catch (notificationErr) {
-        console.error("UPDATE WARD NOTIFICATION ERROR:", notificationErr.message);
+        console.error(
+          "UPDATE WARD NOTIFICATION ERROR:",
+          notificationErr.message,
+        );
       }
 
       res.json({
@@ -383,7 +404,7 @@ router.patch(
       console.error("UPDATE WARD ERROR:", err);
       res.status(500).json({ message: "Server error" });
     }
-  }
+  },
 );
 
 /**
@@ -407,7 +428,7 @@ router.delete(
 
         const check = await client.query(
           `SELECT id, name, active FROM wards WHERE id = $1`,
-          [wardId]
+          [wardId],
         );
 
         if (check.rowCount === 0) {
@@ -424,53 +445,57 @@ router.delete(
 
         const unassignPatients = await client.query(
           `UPDATE patients SET ward_id = NULL WHERE ward_id = $1`,
-          [wardId]
+          [wardId],
         );
 
         const removeDoctors = await client.query(
           `DELETE FROM doctor_wards WHERE ward_id = $1`,
-          [wardId]
+          [wardId],
         );
 
         const removeNurses = await client.query(
           `DELETE FROM nurse_wards WHERE ward_id = $1`,
-          [wardId]
+          [wardId],
         );
 
-        await client.query(
-          `UPDATE wards SET active = false WHERE id = $1`,
-          [wardId]
-        );
+        await client.query(`UPDATE wards SET active = false WHERE id = $1`, [
+          wardId,
+        ]);
 
         await client.query("COMMIT");
         client.release();
 
-      try {
-        const adminUserIds = await listUserIdsForRole("admin");
-        const wardName = check.rows[0]?.name;
-        await notifyUsersBestEffort([...adminUserIds, req.user.id], {
-          type: "WARD_DEACTIVATED",
-          title: "Ward Deactivated",
-          message: wardName ? `Ward "${wardName}" was deactivated` : `Ward #${wardId} was deactivated`,
-          metadata: {
-            ward_id: wardId,
-            ward_name: wardName,
-            unassigned_patients: unassignPatients.rowCount,
-            removed_doctor_links: removeDoctors.rowCount,
-            removed_nurse_links: removeNurses.rowCount,
-          },
-        });
-      } catch (notificationErr) {
-        console.error("DEACTIVATE WARD NOTIFICATION ERROR:", notificationErr.message);
-      }
+        try {
+          const adminUserIds = await listUserIdsForRole("admin");
+          const wardName = check.rows[0]?.name;
+          await notifyUsersBestEffort([...adminUserIds, req.user.id], {
+            type: "WARD_DEACTIVATED",
+            title: "Ward Deactivated",
+            message: wardName
+              ? `Ward "${wardName}" was deactivated`
+              : `Ward #${wardId} was deactivated`,
+            metadata: {
+              ward_id: wardId,
+              ward_name: wardName,
+              unassigned_patients: unassignPatients.rowCount,
+              removed_doctor_links: removeDoctors.rowCount,
+              removed_nurse_links: removeNurses.rowCount,
+            },
+          });
+        } catch (notificationErr) {
+          console.error(
+            "DEACTIVATE WARD NOTIFICATION ERROR:",
+            notificationErr.message,
+          );
+        }
 
-      return res.json({
-        message: "Ward deactivated successfully",
-        ward_id: wardId,
-        unassigned_patients: unassignPatients.rowCount,
-        removed_doctor_links: removeDoctors.rowCount,
-        removed_nurse_links: removeNurses.rowCount,
-      });
+        return res.json({
+          message: "Ward deactivated successfully",
+          ward_id: wardId,
+          unassigned_patients: unassignPatients.rowCount,
+          removed_doctor_links: removeDoctors.rowCount,
+          removed_nurse_links: removeNurses.rowCount,
+        });
       } catch (innerErr) {
         await client.query("ROLLBACK");
         client.release();
@@ -480,7 +505,7 @@ router.delete(
       console.error("DEACTIVATE WARD ERROR:", err);
       return res.status(500).json({ message: "Server error" });
     }
-  }
+  },
 );
 
 /**
@@ -496,12 +521,14 @@ router.post(
       const doctorId = parseInt(req.body.doctor_id, 10);
 
       if (Number.isNaN(wardId) || Number.isNaN(doctorId)) {
-        return res.status(400).json({ message: "ward id and doctor_id are required" });
+        return res
+          .status(400)
+          .json({ message: "ward id and doctor_id are required" });
       }
 
       const wardCheck = await pool.query(
         `SELECT id FROM wards WHERE id = $1 AND active = true`,
-        [wardId]
+        [wardId],
       );
       if (wardCheck.rowCount === 0) {
         return res.status(404).json({ message: "Ward not found" });
@@ -509,7 +536,7 @@ router.post(
 
       const doctorCheck = await pool.query(
         `SELECT id FROM doctors WHERE id = $1`,
-        [doctorId]
+        [doctorId],
       );
       if (doctorCheck.rowCount === 0) {
         return res.status(404).json({ message: "Doctor not found" });
@@ -517,29 +544,43 @@ router.post(
 
       const insertResult = await pool.query(
         `INSERT INTO doctor_wards (doctor_id, ward_id) VALUES ($1, $2) ON CONFLICT DO NOTHING RETURNING doctor_id`,
-        [doctorId, wardId]
+        [doctorId, wardId],
       );
 
       if (insertResult.rowCount > 0) {
         try {
           const adminUserIds = await listUserIdsForRole("admin");
-          const wardNameLookup = await pool.query(`SELECT name FROM wards WHERE id = $1`, [wardId]);
+          const wardNameLookup = await pool.query(
+            `SELECT name FROM wards WHERE id = $1`,
+            [wardId],
+          );
           const wardName = wardNameLookup.rows[0]?.name;
           const doctorUserLookup = await pool.query(
             `SELECT u.id as user_id, u.name FROM doctors d JOIN users u ON d.user_id = u.id WHERE d.id = $1`,
-            [doctorId]
+            [doctorId],
           );
           const doctorUserId = doctorUserLookup.rows[0]?.user_id;
           const doctorName = doctorUserLookup.rows[0]?.name;
 
-          await notifyUsersBestEffort([...adminUserIds, req.user.id, doctorUserId], {
-            type: "WARD_DOCTOR_ASSIGNED",
-            title: "Ward Assignment",
-            message: `${doctorName || "A doctor"} was assigned to ${wardName ? `ward "${wardName}"` : `ward #${wardId}`}`,
-            metadata: { ward_id: wardId, ward_name: wardName, doctor_id: doctorId, doctor_user_id: doctorUserId },
-          });
+          await notifyUsersBestEffort(
+            [...adminUserIds, req.user.id, doctorUserId],
+            {
+              type: "WARD_DOCTOR_ASSIGNED",
+              title: "Ward Assignment",
+              message: `${doctorName || "A doctor"} was assigned to ${wardName ? `ward "${wardName}"` : `ward #${wardId}`}`,
+              metadata: {
+                ward_id: wardId,
+                ward_name: wardName,
+                doctor_id: doctorId,
+                doctor_user_id: doctorUserId,
+              },
+            },
+          );
         } catch (notificationErr) {
-          console.error("ASSIGN DOCTOR WARD NOTIFICATION ERROR:", notificationErr.message);
+          console.error(
+            "ASSIGN DOCTOR WARD NOTIFICATION ERROR:",
+            notificationErr.message,
+          );
         }
       }
 
@@ -548,7 +589,7 @@ router.post(
       console.error("ASSIGN DOCTOR TO WARD ERROR:", err);
       return res.status(500).json({ message: "Server error" });
     }
-  }
+  },
 );
 
 /**
@@ -563,12 +604,14 @@ router.delete(
       const wardId = parseInt(req.params.id, 10);
       const doctorId = parseInt(req.params.doctorId, 10);
       if (Number.isNaN(wardId) || Number.isNaN(doctorId)) {
-        return res.status(400).json({ message: "Invalid ward id or doctor id" });
+        return res
+          .status(400)
+          .json({ message: "Invalid ward id or doctor id" });
       }
 
       const result = await pool.query(
         `DELETE FROM doctor_wards WHERE ward_id = $1 AND doctor_id = $2`,
-        [wardId, doctorId]
+        [wardId, doctorId],
       );
 
       if (result.rowCount === 0) {
@@ -577,23 +620,37 @@ router.delete(
 
       try {
         const adminUserIds = await listUserIdsForRole("admin");
-        const wardNameLookup = await pool.query(`SELECT name FROM wards WHERE id = $1`, [wardId]);
+        const wardNameLookup = await pool.query(
+          `SELECT name FROM wards WHERE id = $1`,
+          [wardId],
+        );
         const wardName = wardNameLookup.rows[0]?.name;
         const doctorUserLookup = await pool.query(
           `SELECT u.id as user_id, u.name FROM doctors d JOIN users u ON d.user_id = u.id WHERE d.id = $1`,
-          [doctorId]
+          [doctorId],
         );
         const doctorUserId = doctorUserLookup.rows[0]?.user_id;
         const doctorName = doctorUserLookup.rows[0]?.name;
 
-        await notifyUsersBestEffort([...adminUserIds, req.user.id, doctorUserId], {
-          type: "WARD_DOCTOR_UNASSIGNED",
-          title: "Ward Assignment",
-          message: `${doctorName || "A doctor"} was removed from ${wardName ? `ward "${wardName}"` : `ward #${wardId}`}`,
-          metadata: { ward_id: wardId, ward_name: wardName, doctor_id: doctorId, doctor_user_id: doctorUserId },
-        });
+        await notifyUsersBestEffort(
+          [...adminUserIds, req.user.id, doctorUserId],
+          {
+            type: "WARD_DOCTOR_UNASSIGNED",
+            title: "Ward Assignment",
+            message: `${doctorName || "A doctor"} was removed from ${wardName ? `ward "${wardName}"` : `ward #${wardId}`}`,
+            metadata: {
+              ward_id: wardId,
+              ward_name: wardName,
+              doctor_id: doctorId,
+              doctor_user_id: doctorUserId,
+            },
+          },
+        );
       } catch (notificationErr) {
-        console.error("REMOVE DOCTOR WARD NOTIFICATION ERROR:", notificationErr.message);
+        console.error(
+          "REMOVE DOCTOR WARD NOTIFICATION ERROR:",
+          notificationErr.message,
+        );
       }
 
       return res.json({ message: "Doctor removed from ward" });
@@ -601,7 +658,7 @@ router.delete(
       console.error("REMOVE DOCTOR FROM WARD ERROR:", err);
       return res.status(500).json({ message: "Server error" });
     }
-  }
+  },
 );
 
 /**
@@ -617,12 +674,14 @@ router.post(
       const nurseId = parseInt(req.body.nurse_id, 10);
 
       if (Number.isNaN(wardId) || Number.isNaN(nurseId)) {
-        return res.status(400).json({ message: "ward id and nurse_id are required" });
+        return res
+          .status(400)
+          .json({ message: "ward id and nurse_id are required" });
       }
 
       const wardCheck = await pool.query(
         `SELECT id FROM wards WHERE id = $1 AND active = true`,
-        [wardId]
+        [wardId],
       );
       if (wardCheck.rowCount === 0) {
         return res.status(404).json({ message: "Ward not found" });
@@ -636,7 +695,7 @@ router.post(
         JOIN roles r ON ur.role_id = r.id
         WHERE ur.user_id = $1 AND r.name = 'nurse'
         `,
-        [nurseId]
+        [nurseId],
       );
       if (nurseCheck.rowCount === 0) {
         return res.status(404).json({ message: "Nurse not found" });
@@ -644,25 +703,38 @@ router.post(
 
       const insertResult = await pool.query(
         `INSERT INTO nurse_wards (nurse_id, ward_id) VALUES ($1, $2) ON CONFLICT DO NOTHING RETURNING nurse_id`,
-        [nurseId, wardId]
+        [nurseId, wardId],
       );
 
       if (insertResult.rowCount > 0) {
         try {
           const adminUserIds = await listUserIdsForRole("admin");
-          const wardNameLookup = await pool.query(`SELECT name FROM wards WHERE id = $1`, [wardId]);
+          const wardNameLookup = await pool.query(
+            `SELECT name FROM wards WHERE id = $1`,
+            [wardId],
+          );
           const wardName = wardNameLookup.rows[0]?.name;
-          const nurseNameLookup = await pool.query(`SELECT name FROM users WHERE id = $1`, [nurseId]);
+          const nurseNameLookup = await pool.query(
+            `SELECT name FROM users WHERE id = $1`,
+            [nurseId],
+          );
           const nurseName = nurseNameLookup.rows[0]?.name;
 
           await notifyUsersBestEffort([...adminUserIds, req.user.id, nurseId], {
             type: "WARD_NURSE_ASSIGNED",
             title: "Ward Assignment",
             message: `${nurseName || "A nurse"} was assigned to ${wardName ? `ward "${wardName}"` : `ward #${wardId}`}`,
-            metadata: { ward_id: wardId, ward_name: wardName, nurse_user_id: nurseId },
+            metadata: {
+              ward_id: wardId,
+              ward_name: wardName,
+              nurse_user_id: nurseId,
+            },
           });
         } catch (notificationErr) {
-          console.error("ASSIGN NURSE WARD NOTIFICATION ERROR:", notificationErr.message);
+          console.error(
+            "ASSIGN NURSE WARD NOTIFICATION ERROR:",
+            notificationErr.message,
+          );
         }
       }
 
@@ -671,7 +743,7 @@ router.post(
       console.error("ASSIGN NURSE TO WARD ERROR:", err);
       return res.status(500).json({ message: "Server error" });
     }
-  }
+  },
 );
 
 /**
@@ -691,7 +763,7 @@ router.delete(
 
       const result = await pool.query(
         `DELETE FROM nurse_wards WHERE ward_id = $1 AND nurse_id = $2`,
-        [wardId, nurseId]
+        [wardId, nurseId],
       );
 
       if (result.rowCount === 0) {
@@ -700,19 +772,32 @@ router.delete(
 
       try {
         const adminUserIds = await listUserIdsForRole("admin");
-        const wardNameLookup = await pool.query(`SELECT name FROM wards WHERE id = $1`, [wardId]);
+        const wardNameLookup = await pool.query(
+          `SELECT name FROM wards WHERE id = $1`,
+          [wardId],
+        );
         const wardName = wardNameLookup.rows[0]?.name;
-        const nurseNameLookup = await pool.query(`SELECT name FROM users WHERE id = $1`, [nurseId]);
+        const nurseNameLookup = await pool.query(
+          `SELECT name FROM users WHERE id = $1`,
+          [nurseId],
+        );
         const nurseName = nurseNameLookup.rows[0]?.name;
 
         await notifyUsersBestEffort([...adminUserIds, req.user.id, nurseId], {
           type: "WARD_NURSE_UNASSIGNED",
           title: "Ward Assignment",
           message: `${nurseName || "A nurse"} was removed from ${wardName ? `ward "${wardName}"` : `ward #${wardId}`}`,
-          metadata: { ward_id: wardId, ward_name: wardName, nurse_user_id: nurseId },
+          metadata: {
+            ward_id: wardId,
+            ward_name: wardName,
+            nurse_user_id: nurseId,
+          },
         });
       } catch (notificationErr) {
-        console.error("REMOVE NURSE WARD NOTIFICATION ERROR:", notificationErr.message);
+        console.error(
+          "REMOVE NURSE WARD NOTIFICATION ERROR:",
+          notificationErr.message,
+        );
       }
 
       return res.json({ message: "Nurse removed from ward" });
@@ -720,7 +805,7 @@ router.delete(
       console.error("REMOVE NURSE FROM WARD ERROR:", err);
       return res.status(500).json({ message: "Server error" });
     }
-  }
+  },
 );
 
 module.exports = router;

@@ -12,7 +12,7 @@ const router = express.Router();
 const listUserIdsForRole = async (roleName) => {
   const result = await pool.query(
     `SELECT ur.user_id as id FROM user_roles ur JOIN roles r ON ur.role_id = r.id WHERE r.name = $1`,
-    [roleName]
+    [roleName],
   );
   return result.rows.map((row) => row.id);
 };
@@ -71,7 +71,7 @@ router.get(
         WHERE r.name = 'nurse'
         GROUP BY u.id, u.name, u.email, u.created_at, u.active
         ORDER BY COALESCE(u.active, true) DESC, u.name ASC
-        `
+        `,
       );
 
       res.json({
@@ -83,7 +83,7 @@ router.get(
       console.error("GET NURSES ERROR:", err);
       res.status(500).json({ message: "Server error" });
     }
-  }
+  },
 );
 
 router.get(
@@ -103,7 +103,7 @@ router.get(
         JOIN roles r ON ur.role_id = r.id
         WHERE u.id = $1 AND r.name = 'nurse'
         `,
-        [nurseId]
+        [nurseId],
       );
 
       if (nurseCheck.rowCount === 0) {
@@ -114,7 +114,7 @@ router.get(
 
       const wardsResult = await pool.query(
         `SELECT w.id, w.name FROM wards w JOIN nurse_wards nw ON w.id = nw.ward_id WHERE nw.nurse_id = $1`,
-        [nurseId]
+        [nurseId],
       );
 
       const patientsResult = await pool.query(
@@ -128,7 +128,7 @@ router.get(
         WHERE pa.staff_id = $1 AND pa.role = 'nurse'
         ORDER BY u.name ASC
         `,
-        [nurseId]
+        [nurseId],
       );
 
       res.json({
@@ -147,7 +147,7 @@ router.get(
       console.error("GET NURSE ERROR:", err);
       res.status(500).json({ message: "Server error" });
     }
-  }
+  },
 );
 
 router.post(
@@ -168,9 +168,10 @@ router.post(
       try {
         await client.query("BEGIN");
 
-        const dup = await client.query(`SELECT id FROM users WHERE email = $1`, [
-          email,
-        ]);
+        const dup = await client.query(
+          `SELECT id FROM users WHERE email = $1`,
+          [email],
+        );
         if (dup.rowCount > 0) {
           await client.query("ROLLBACK");
           client.release();
@@ -180,12 +181,12 @@ router.post(
         const hashedPw = await bcrypt.hash(password, 10);
         const userResult = await client.query(
           `INSERT INTO users (name, email, password, active) VALUES ($1, $2, $3, true) RETURNING id, name, email, created_at, active`,
-          [name, email, hashedPw]
+          [name, email, hashedPw],
         );
         const newUser = userResult.rows[0];
 
         const roleResult = await client.query(
-          `SELECT id FROM roles WHERE name = 'nurse'`
+          `SELECT id FROM roles WHERE name = 'nurse'`,
         );
         if (roleResult.rowCount === 0) {
           await client.query("ROLLBACK");
@@ -196,25 +197,25 @@ router.post(
         }
         await client.query(
           `INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-          [newUser.id, roleResult.rows[0].id]
+          [newUser.id, roleResult.rows[0].id],
         );
 
         await client.query("COMMIT");
         client.release();
 
-      try {
-        const adminUserIds = await listUserIdsForRole("admin");
-        await notifyUsersBestEffort([...adminUserIds, req.user.id], {
-          type: "NURSE_CREATED",
-          title: "Nurse Created",
-          message: `Nurse "${newUser.name}" was created`,
-          metadata: { nurse_user_id: newUser.id, nurse_name: newUser.name },
-        });
-      } catch (_) {}
+        try {
+          const adminUserIds = await listUserIdsForRole("admin");
+          await notifyUsersBestEffort([...adminUserIds, req.user.id], {
+            type: "NURSE_CREATED",
+            title: "Nurse Created",
+            message: `Nurse "${newUser.name}" was created`,
+            metadata: { nurse_user_id: newUser.id, nurse_name: newUser.name },
+          });
+        } catch (_) {}
 
-      return res
-        .status(201)
-        .json({ message: "Nurse created successfully", nurse: newUser });
+        return res
+          .status(201)
+          .json({ message: "Nurse created successfully", nurse: newUser });
       } catch (innerErr) {
         await client.query("ROLLBACK");
         client.release();
@@ -224,7 +225,7 @@ router.post(
       console.error("CREATE NURSE ERROR:", err);
       return res.status(500).json({ message: "Server error" });
     }
-  }
+  },
 );
 
 router.patch(
@@ -245,7 +246,7 @@ router.patch(
     try {
       const nurseCheck = await pool.query(
         `SELECT u.id, u.name, u.email FROM users u JOIN user_roles ur ON u.id = ur.user_id JOIN roles r ON ur.role_id = r.id WHERE u.id = $1 AND r.name = 'nurse'`,
-        [nurseId]
+        [nurseId],
       );
       if (nurseCheck.rowCount === 0) {
         return res.status(404).json({ message: "Nurse not found" });
@@ -254,7 +255,7 @@ router.patch(
       if (email && email !== nurseCheck.rows[0].email) {
         const dup = await pool.query(
           `SELECT id FROM users WHERE email = $1 AND id != $2`,
-          [email, nurseId]
+          [email, nurseId],
         );
         if (dup.rowCount > 0) {
           return res.status(409).json({ message: "Email already in use" });
@@ -276,7 +277,7 @@ router.patch(
 
       const result = await pool.query(
         `UPDATE users SET ${sets.join(", ")} WHERE id = $${idx} RETURNING id, name, email, created_at, COALESCE(active, true) as active`,
-        vals
+        vals,
       );
 
       try {
@@ -297,7 +298,7 @@ router.patch(
       console.error("UPDATE NURSE ERROR:", err);
       return res.status(500).json({ message: "Server error" });
     }
-  }
+  },
 );
 
 router.delete(
@@ -319,7 +320,7 @@ router.delete(
           `SELECT u.id, u.name, COALESCE(u.active, true) as active
            FROM users u JOIN user_roles ur ON u.id = ur.user_id JOIN roles r ON ur.role_id = r.id
            WHERE u.id = $1 AND r.name = 'nurse'`,
-          [nurseId]
+          [nurseId],
         );
 
         if (nurseCheck.rowCount === 0) {
@@ -331,17 +332,19 @@ router.delete(
         if (nurseCheck.rows[0].active === false) {
           await client.query("ROLLBACK");
           client.release();
-          return res.status(409).json({ message: "Nurse is already suspended" });
+          return res
+            .status(409)
+            .json({ message: "Nurse is already suspended" });
         }
 
         const removeWards = await client.query(
           `DELETE FROM nurse_wards WHERE nurse_id = $1`,
-          [nurseId]
+          [nurseId],
         );
 
         const removeAssignments = await client.query(
           `DELETE FROM patient_assignments WHERE staff_id = $1 AND role = 'nurse'`,
-          [nurseId]
+          [nurseId],
         );
 
         await client.query(`UPDATE users SET active = false WHERE id = $1`, [
@@ -351,28 +354,28 @@ router.delete(
         await client.query("COMMIT");
         client.release();
 
-      try {
-        const adminUserIds = await listUserIdsForRole("admin");
-        const nurseName = nurseCheck.rows[0].name;
-        await notifyUsersBestEffort([...adminUserIds, req.user.id], {
-          type: "NURSE_SUSPENDED",
-          title: "Nurse Suspended",
-          message: `Nurse "${nurseName}" was suspended`,
-          metadata: {
-            nurse_user_id: nurseId,
-            nurse_name: nurseName,
-            removed_ward_links: removeWards.rowCount,
-            removed_patient_assignments: removeAssignments.rowCount,
-          },
-        });
-      } catch (_) {}
+        try {
+          const adminUserIds = await listUserIdsForRole("admin");
+          const nurseName = nurseCheck.rows[0].name;
+          await notifyUsersBestEffort([...adminUserIds, req.user.id], {
+            type: "NURSE_SUSPENDED",
+            title: "Nurse Suspended",
+            message: `Nurse "${nurseName}" was suspended`,
+            metadata: {
+              nurse_user_id: nurseId,
+              nurse_name: nurseName,
+              removed_ward_links: removeWards.rowCount,
+              removed_patient_assignments: removeAssignments.rowCount,
+            },
+          });
+        } catch (_) {}
 
-      return res.json({
-        message: "Nurse suspended successfully",
-        nurse_id: nurseId,
-        removed_ward_links: removeWards.rowCount,
-        removed_patient_assignments: removeAssignments.rowCount,
-      });
+        return res.json({
+          message: "Nurse suspended successfully",
+          nurse_id: nurseId,
+          removed_ward_links: removeWards.rowCount,
+          removed_patient_assignments: removeAssignments.rowCount,
+        });
       } catch (innerErr) {
         await client.query("ROLLBACK");
         client.release();
@@ -382,7 +385,7 @@ router.delete(
       console.error("SUSPEND NURSE ERROR:", err);
       return res.status(500).json({ message: "Server error" });
     }
-  }
+  },
 );
 
 router.patch(
@@ -400,7 +403,7 @@ router.patch(
         `SELECT u.id, u.name, COALESCE(u.active, true) as active
          FROM users u JOIN user_roles ur ON u.id = ur.user_id JOIN roles r ON ur.role_id = r.id
          WHERE u.id = $1 AND r.name = 'nurse'`,
-        [nurseId]
+        [nurseId],
       );
 
       if (nurseCheck.rowCount === 0) {
@@ -413,7 +416,7 @@ router.patch(
 
       const result = await pool.query(
         `UPDATE users SET active = true WHERE id = $1 RETURNING id, name, email, created_at, active`,
-        [nurseId]
+        [nurseId],
       );
 
       try {
@@ -434,7 +437,7 @@ router.patch(
       console.error("RESTORE NURSE ERROR:", err);
       return res.status(500).json({ message: "Server error" });
     }
-  }
+  },
 );
 
 router.get(
@@ -457,7 +460,7 @@ router.get(
         WHERE pa.staff_id = $1 AND pa.role = 'nurse'
         ORDER BY u.name ASC
         `,
-        [nurseId]
+        [nurseId],
       );
 
       res.json({
@@ -469,7 +472,7 @@ router.get(
       console.error("GET NURSE PATIENTS ERROR:", err);
       res.status(500).json({ message: "Server error" });
     }
-  }
+  },
 );
 
 router.get(
@@ -483,7 +486,7 @@ router.get(
 
       const result = await pool.query(
         `SELECT w.id, w.name FROM wards w JOIN nurse_wards nw ON w.id = nw.ward_id WHERE nw.nurse_id = $1 ORDER BY w.name ASC`,
-        [nurseId]
+        [nurseId],
       );
 
       res.json({
@@ -495,7 +498,7 @@ router.get(
       console.error("GET NURSE WARDS ERROR:", err);
       res.status(500).json({ message: "Server error" });
     }
-  }
+  },
 );
 
 router.post(
@@ -517,7 +520,7 @@ router.post(
         `SELECT u.id, u.name, COALESCE(u.active, true) as active
          FROM users u JOIN user_roles ur ON u.id = ur.user_id JOIN roles r ON ur.role_id = r.id
          WHERE u.id = $1 AND r.name = 'nurse'`,
-        [nurseId]
+        [nurseId],
       );
       if (nurseCheck.rowCount === 0) {
         return res.status(404).json({ message: "Nurse not found" });
@@ -530,7 +533,7 @@ router.post(
 
       const wardCheck = await pool.query(
         `SELECT id, name FROM wards WHERE id = $1 AND active = true`,
-        [wardId]
+        [wardId],
       );
       if (wardCheck.rowCount === 0) {
         return res.status(404).json({ message: "Ward not found or inactive" });
@@ -538,7 +541,7 @@ router.post(
 
       const insertResult = await pool.query(
         `INSERT INTO nurse_wards (nurse_id, ward_id) VALUES ($1, $2) ON CONFLICT DO NOTHING RETURNING nurse_id`,
-        [nurseId, wardId]
+        [nurseId, wardId],
       );
 
       if (insertResult.rowCount === 0) {
@@ -566,7 +569,7 @@ router.post(
       console.error("ASSIGN NURSE WARD ERROR:", err);
       return res.status(500).json({ message: "Server error" });
     }
-  }
+  },
 );
 
 router.delete(
@@ -584,7 +587,7 @@ router.delete(
     try {
       const result = await pool.query(
         `DELETE FROM nurse_wards WHERE nurse_id = $1 AND ward_id = $2`,
-        [nurseId, wardId]
+        [nurseId, wardId],
       );
 
       if (result.rowCount === 0) {
@@ -595,12 +598,12 @@ router.delete(
         const adminUserIds = await listUserIdsForRole("admin");
         const wardNameLookup = await pool.query(
           `SELECT name FROM wards WHERE id = $1`,
-          [wardId]
+          [wardId],
         );
         const wardName = wardNameLookup.rows[0]?.name;
         const nurseNameLookup = await pool.query(
           `SELECT name FROM users WHERE id = $1`,
-          [nurseId]
+          [nurseId],
         );
         const nurseName = nurseNameLookup.rows[0]?.name;
 
@@ -621,7 +624,7 @@ router.delete(
       console.error("REMOVE NURSE WARD ERROR:", err);
       return res.status(500).json({ message: "Server error" });
     }
-  }
+  },
 );
 
 module.exports = router;

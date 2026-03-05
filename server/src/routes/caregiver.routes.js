@@ -16,7 +16,7 @@ const listUserIdsForRole = async (roleName) => {
      FROM user_roles ur
      JOIN roles r ON ur.role_id = r.id
      WHERE r.name = $1`,
-    [roleName]
+    [roleName],
   );
   return result.rows.map((row) => row.id);
 };
@@ -55,7 +55,7 @@ router.get(
         WHERE r.name = 'caregiver'
         GROUP BY u.id, u.name, u.email, u.created_at, u.active
         ORDER BY COALESCE(u.active, true) DESC, u.name ASC
-        `
+        `,
       );
 
       res.json({
@@ -67,7 +67,7 @@ router.get(
       console.error("GET CAREGIVERS ERROR:", err);
       res.status(500).json({ message: "Server error" });
     }
-  }
+  },
 );
 
 router.get(
@@ -103,7 +103,7 @@ router.get(
         WHERE pc.caregiver_id = $1
         ORDER BY u.name ASC
         `,
-        [caregiverId]
+        [caregiverId],
       );
 
       res.json({
@@ -115,7 +115,7 @@ router.get(
       console.error("GET MY PATIENTS ERROR:", err);
       res.status(500).json({ message: "Server error" });
     }
-  }
+  },
 );
 
 router.post(
@@ -142,7 +142,7 @@ router.post(
 
       const patientCheck = await pool.query(
         `SELECT id, user_id FROM patients WHERE id = $1`,
-        [patient_id]
+        [patient_id],
       );
       if (patientCheck.rowCount === 0) {
         return res.status(404).json({ message: "Patient not found" });
@@ -152,7 +152,7 @@ router.post(
 
       const existing = await pool.query(
         `SELECT id FROM patient_caregivers WHERE patient_id = $1 AND caregiver_id = $2`,
-        [patientUserId, caregiverId]
+        [patientUserId, caregiverId],
       );
       if (existing.rowCount > 0) {
         return res
@@ -164,7 +164,7 @@ router.post(
         `INSERT INTO patient_caregivers (patient_id, caregiver_id, relationship)
          VALUES ($1, $2, $3)
          RETURNING *`,
-        [patientUserId, caregiverId, relationship]
+        [patientUserId, caregiverId, relationship],
       );
 
       res.status(201).json({
@@ -175,7 +175,7 @@ router.post(
       console.error("LINK CAREGIVER ERROR:", err);
       res.status(500).json({ message: "Server error" });
     }
-  }
+  },
 );
 
 router.delete(
@@ -196,7 +196,7 @@ router.delete(
 
       const patientCheck = await pool.query(
         `SELECT user_id FROM patients WHERE id = $1`,
-        [patientId]
+        [patientId],
       );
       if (patientCheck.rowCount === 0) {
         return res.status(404).json({ message: "Patient not found" });
@@ -206,7 +206,7 @@ router.delete(
 
       const check = await pool.query(
         `SELECT id FROM patient_caregivers WHERE patient_id = $1 AND caregiver_id = $2`,
-        [patientUserId, caregiverId]
+        [patientUserId, caregiverId],
       );
       if (check.rowCount === 0) {
         return res.status(404).json({ message: "Caregiver link not found" });
@@ -214,7 +214,7 @@ router.delete(
 
       await pool.query(
         `DELETE FROM patient_caregivers WHERE patient_id = $1 AND caregiver_id = $2`,
-        [patientUserId, caregiverId]
+        [patientUserId, caregiverId],
       );
 
       res.json({ message: "Caregiver unlinked from patient successfully" });
@@ -222,7 +222,7 @@ router.delete(
       console.error("UNLINK CAREGIVER ERROR:", err);
       res.status(500).json({ message: "Server error" });
     }
-  }
+  },
 );
 
 router.get(
@@ -250,7 +250,7 @@ router.get(
         JOIN roles r ON ur.role_id = r.id
         WHERE u.id = $1 AND r.name = 'caregiver'
         `,
-        [caregiverId]
+        [caregiverId],
       );
 
       if (caregiverCheck.rowCount === 0) {
@@ -277,7 +277,7 @@ router.get(
         WHERE pc.caregiver_id = $1
         ORDER BY u.name ASC
         `,
-        [caregiverId]
+        [caregiverId],
       );
 
       res.json({
@@ -294,63 +294,59 @@ router.get(
       console.error("GET CAREGIVER ERROR:", err);
       res.status(500).json({ message: "Server error" });
     }
-  }
+  },
 );
 
-router.post(
-  "/",
-  authMiddleware,
-  requireRole("admin"),
-  async (req, res) => {
-    const { name, email, password } = req.body;
+router.post("/", authMiddleware, requireRole("admin"), async (req, res) => {
+  const { name, email, password } = req.body;
 
-    if (!name || !email || !password) {
-      return res
-        .status(400)
-        .json({ message: "name, email and password are required" });
-    }
+  if (!name || !email || !password) {
+    return res
+      .status(400)
+      .json({ message: "name, email and password are required" });
+  }
 
+  try {
+    const client = await pool.connect();
     try {
-      const client = await pool.connect();
-      try {
-        await client.query("BEGIN");
+      await client.query("BEGIN");
 
-        const dup = await client.query(`SELECT id FROM users WHERE email = $1`, [
-          email,
-        ]);
-        if (dup.rowCount > 0) {
-          await client.query("ROLLBACK");
-          client.release();
-          return res.status(409).json({ message: "Email already in use" });
-        }
+      const dup = await client.query(`SELECT id FROM users WHERE email = $1`, [
+        email,
+      ]);
+      if (dup.rowCount > 0) {
+        await client.query("ROLLBACK");
+        client.release();
+        return res.status(409).json({ message: "Email already in use" });
+      }
 
-        const hashedPw = await bcrypt.hash(password, 10);
-        const userResult = await client.query(
-          `INSERT INTO users (name, email, password, active)
+      const hashedPw = await bcrypt.hash(password, 10);
+      const userResult = await client.query(
+        `INSERT INTO users (name, email, password, active)
            VALUES ($1, $2, $3, true)
            RETURNING id, name, email, created_at, active`,
-          [name, email, hashedPw]
-        );
-        const newUser = userResult.rows[0];
+        [name, email, hashedPw],
+      );
+      const newUser = userResult.rows[0];
 
-        const roleResult = await client.query(
-          `SELECT id FROM roles WHERE name = 'caregiver'`
-        );
-        if (roleResult.rowCount === 0) {
-          await client.query("ROLLBACK");
-          client.release();
-          return res
-            .status(500)
-            .json({ message: "Caregiver role not found in system" });
-        }
-
-        await client.query(
-          `INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-          [newUser.id, roleResult.rows[0].id]
-        );
-
-        await client.query("COMMIT");
+      const roleResult = await client.query(
+        `SELECT id FROM roles WHERE name = 'caregiver'`,
+      );
+      if (roleResult.rowCount === 0) {
+        await client.query("ROLLBACK");
         client.release();
+        return res
+          .status(500)
+          .json({ message: "Caregiver role not found in system" });
+      }
+
+      await client.query(
+        `INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+        [newUser.id, roleResult.rows[0].id],
+      );
+
+      await client.query("COMMIT");
+      client.release();
 
       try {
         const adminUserIds = await listUserIdsForRole("admin");
@@ -369,97 +365,91 @@ router.post(
         message: "Caregiver created successfully",
         caregiver: newUser,
       });
-      } catch (innerErr) {
-        await client.query("ROLLBACK");
-        client.release();
-        throw innerErr;
-      }
-    } catch (err) {
-      console.error("CREATE CAREGIVER ERROR:", err);
-      return res.status(500).json({ message: "Server error" });
+    } catch (innerErr) {
+      await client.query("ROLLBACK");
+      client.release();
+      throw innerErr;
     }
+  } catch (err) {
+    console.error("CREATE CAREGIVER ERROR:", err);
+    return res.status(500).json({ message: "Server error" });
   }
-);
+});
 
-router.patch(
-  "/:id",
-  authMiddleware,
-  requireRole("admin"),
-  async (req, res) => {
-    const caregiverId = parseInt(req.params.id, 10);
-    if (Number.isNaN(caregiverId)) {
-      return res.status(400).json({ message: "Invalid caregiver id" });
-    }
+router.patch("/:id", authMiddleware, requireRole("admin"), async (req, res) => {
+  const caregiverId = parseInt(req.params.id, 10);
+  if (Number.isNaN(caregiverId)) {
+    return res.status(400).json({ message: "Invalid caregiver id" });
+  }
 
-    const { name, email } = req.body;
-    if (!name && !email) {
-      return res.status(400).json({ message: "name or email is required" });
-    }
+  const { name, email } = req.body;
+  if (!name && !email) {
+    return res.status(400).json({ message: "name or email is required" });
+  }
 
-    try {
-      const check = await pool.query(
-        `SELECT u.id, u.name, u.email
+  try {
+    const check = await pool.query(
+      `SELECT u.id, u.name, u.email
          FROM users u
          JOIN user_roles ur ON u.id = ur.user_id
          JOIN roles r ON ur.role_id = r.id
          WHERE u.id = $1 AND r.name = 'caregiver'`,
-        [caregiverId]
+      [caregiverId],
+    );
+    if (check.rowCount === 0) {
+      return res.status(404).json({ message: "Caregiver not found" });
+    }
+
+    if (email && email !== check.rows[0].email) {
+      const dup = await pool.query(
+        `SELECT id FROM users WHERE email = $1 AND id != $2`,
+        [email, caregiverId],
       );
-      if (check.rowCount === 0) {
-        return res.status(404).json({ message: "Caregiver not found" });
+      if (dup.rowCount > 0) {
+        return res.status(409).json({ message: "Email already in use" });
       }
+    }
 
-      if (email && email !== check.rows[0].email) {
-        const dup = await pool.query(
-          `SELECT id FROM users WHERE email = $1 AND id != $2`,
-          [email, caregiverId]
-        );
-        if (dup.rowCount > 0) {
-          return res.status(409).json({ message: "Email already in use" });
-        }
-      }
+    const sets = [];
+    const vals = [];
+    let idx = 1;
+    if (name) {
+      sets.push(`name = $${idx++}`);
+      vals.push(name);
+    }
+    if (email) {
+      sets.push(`email = $${idx++}`);
+      vals.push(email);
+    }
+    vals.push(caregiverId);
 
-      const sets = [];
-      const vals = [];
-      let idx = 1;
-      if (name) {
-        sets.push(`name = $${idx++}`);
-        vals.push(name);
-      }
-      if (email) {
-        sets.push(`email = $${idx++}`);
-        vals.push(email);
-      }
-      vals.push(caregiverId);
-
-      const result = await pool.query(
-        `UPDATE users
+    const result = await pool.query(
+      `UPDATE users
          SET ${sets.join(", ")}
          WHERE id = $${idx}
          RETURNING id, name, email, created_at, COALESCE(active, true) as active`,
-        vals
-      );
+      vals,
+    );
 
-      try {
-        const adminUserIds = await listUserIdsForRole("admin");
-        await notifyUsersBestEffort([...adminUserIds, req.user.id, caregiverId], {
-          type: "CAREGIVER_UPDATED",
-          title: "Caregiver Updated",
-          message: `Caregiver "${result.rows[0].name}" was updated`,
-          metadata: { caregiver_user_id: caregiverId },
-        });
-      } catch (_) {}
-
-      return res.json({
-        message: "Caregiver updated successfully",
-        caregiver: result.rows[0],
+    try {
+      const adminUserIds = await listUserIdsForRole("admin");
+      await notifyUsersBestEffort([...adminUserIds, req.user.id, caregiverId], {
+        type: "CAREGIVER_UPDATED",
+        title: "Caregiver Updated",
+        message: `Caregiver "${result.rows[0].name}" was updated`,
+        metadata: { caregiver_user_id: caregiverId },
       });
-    } catch (err) {
-      console.error("UPDATE CAREGIVER ERROR:", err);
-      return res.status(500).json({ message: "Server error" });
-    }
+    } catch (_) {}
+
+    return res.json({
+      message: "Caregiver updated successfully",
+      caregiver: result.rows[0],
+    });
+  } catch (err) {
+    console.error("UPDATE CAREGIVER ERROR:", err);
+    return res.status(500).json({ message: "Server error" });
   }
-);
+});
 
 router.delete(
   "/:id",
@@ -478,22 +468,25 @@ router.delete(
          JOIN user_roles ur ON u.id = ur.user_id
          JOIN roles r ON ur.role_id = r.id
          WHERE u.id = $1 AND r.name = 'caregiver'`,
-        [caregiverId]
+        [caregiverId],
       );
       if (check.rowCount === 0) {
         return res.status(404).json({ message: "Caregiver not found" });
       }
       if (check.rows[0].active === false) {
-        return res.status(400).json({ message: "Caregiver is already suspended" });
+        return res
+          .status(400)
+          .json({ message: "Caregiver is already suspended" });
       }
 
       const client = await pool.connect();
       try {
         await client.query("BEGIN");
 
-        await client.query(`DELETE FROM patient_caregivers WHERE caregiver_id = $1`, [
-          caregiverId,
-        ]);
+        await client.query(
+          `DELETE FROM patient_caregivers WHERE caregiver_id = $1`,
+          [caregiverId],
+        );
         await client.query(`UPDATE users SET active = false WHERE id = $1`, [
           caregiverId,
         ]);
@@ -521,7 +514,7 @@ router.delete(
       console.error("SUSPEND CAREGIVER ERROR:", err);
       return res.status(500).json({ message: "Server error" });
     }
-  }
+  },
 );
 
 router.patch(
@@ -541,7 +534,7 @@ router.patch(
          JOIN user_roles ur ON u.id = ur.user_id
          JOIN roles r ON ur.role_id = r.id
          WHERE u.id = $1 AND r.name = 'caregiver'`,
-        [caregiverId]
+        [caregiverId],
       );
       if (check.rowCount === 0) {
         return res.status(404).json({ message: "Caregiver not found" });
@@ -550,16 +543,21 @@ router.patch(
         return res.status(400).json({ message: "Caregiver is not suspended" });
       }
 
-      await pool.query(`UPDATE users SET active = true WHERE id = $1`, [caregiverId]);
+      await pool.query(`UPDATE users SET active = true WHERE id = $1`, [
+        caregiverId,
+      ]);
 
       try {
         const adminUserIds = await listUserIdsForRole("admin");
-        await notifyUsersBestEffort([...adminUserIds, req.user.id, caregiverId], {
-          type: "CAREGIVER_RESTORED",
-          title: "Caregiver Restored",
-          message: `Caregiver "${check.rows[0].name}" was restored`,
-          metadata: { caregiver_user_id: caregiverId },
-        });
+        await notifyUsersBestEffort(
+          [...adminUserIds, req.user.id, caregiverId],
+          {
+            type: "CAREGIVER_RESTORED",
+            title: "Caregiver Restored",
+            message: `Caregiver "${check.rows[0].name}" was restored`,
+            metadata: { caregiver_user_id: caregiverId },
+          },
+        );
       } catch (_) {}
 
       return res.json({ message: "Caregiver restored successfully" });
@@ -567,7 +565,7 @@ router.patch(
       console.error("RESTORE CAREGIVER ERROR:", err);
       return res.status(500).json({ message: "Server error" });
     }
-  }
+  },
 );
 
 router.get(
@@ -603,7 +601,7 @@ router.get(
         WHERE pc.caregiver_id = $1
         ORDER BY u.name ASC
         `,
-        [caregiverId]
+        [caregiverId],
       );
 
       res.json({
@@ -615,7 +613,7 @@ router.get(
       console.error("GET CAREGIVER PATIENTS ERROR:", err);
       res.status(500).json({ message: "Server error" });
     }
-  }
+  },
 );
 
 router.post(
@@ -640,7 +638,7 @@ router.post(
          JOIN user_roles ur ON u.id = ur.user_id
          JOIN roles r ON ur.role_id = r.id
          WHERE u.id = $1 AND r.name = 'caregiver'`,
-        [caregiverId]
+        [caregiverId],
       );
       if (cgCheck.rowCount === 0) {
         return res.status(404).json({ message: "Caregiver not found" });
@@ -656,7 +654,7 @@ router.post(
          FROM patients p
          JOIN users u ON p.user_id = u.id
          WHERE u.id = $1`,
-        [patient_user_id]
+        [patient_user_id],
       );
       if (patientCheck.rowCount === 0) {
         return res.status(404).json({ message: "Patient not found" });
@@ -664,7 +662,7 @@ router.post(
 
       const existing = await pool.query(
         `SELECT id FROM patient_caregivers WHERE patient_id = $1 AND caregiver_id = $2`,
-        [patient_user_id, caregiverId]
+        [patient_user_id, caregiverId],
       );
       if (existing.rowCount > 0) {
         return res
@@ -674,7 +672,7 @@ router.post(
 
       await pool.query(
         `INSERT INTO patient_caregivers (patient_id, caregiver_id, relationship) VALUES ($1, $2, $3)`,
-        [patient_user_id, caregiverId, relationship || "caregiver"]
+        [patient_user_id, caregiverId, relationship || "caregiver"],
       );
 
       try {
@@ -686,7 +684,7 @@ router.post(
             title: "Patient Assigned to Caregiver",
             message: `Patient "${patientCheck.rows[0].name}" was assigned to caregiver "${cgCheck.rows[0].name}"`,
             metadata: { caregiver_user_id: caregiverId, patient_user_id },
-          }
+          },
         );
       } catch (_) {}
 
@@ -697,7 +695,7 @@ router.post(
       console.error("ASSIGN CAREGIVER PATIENT ERROR:", err);
       return res.status(500).json({ message: "Server error" });
     }
-  }
+  },
 );
 
 router.delete(
@@ -715,7 +713,7 @@ router.delete(
     try {
       const check = await pool.query(
         `SELECT id FROM patient_caregivers WHERE patient_id = $1 AND caregiver_id = $2`,
-        [patientUserId, caregiverId]
+        [patientUserId, caregiverId],
       );
       if (check.rowCount === 0) {
         return res.status(404).json({ message: "Assignment not found" });
@@ -723,25 +721,33 @@ router.delete(
 
       await pool.query(
         `DELETE FROM patient_caregivers WHERE patient_id = $1 AND caregiver_id = $2`,
-        [patientUserId, caregiverId]
+        [patientUserId, caregiverId],
       );
 
       try {
         const adminUserIds = await listUserIdsForRole("admin");
-        await notifyUsersBestEffort([...adminUserIds, req.user.id, caregiverId], {
-          type: "CAREGIVER_PATIENT_UNASSIGNED",
-          title: "Patient Unassigned from Caregiver",
-          message: "A patient was unassigned from a caregiver",
-          metadata: { caregiver_user_id: caregiverId, patient_user_id: patientUserId },
-        });
+        await notifyUsersBestEffort(
+          [...adminUserIds, req.user.id, caregiverId],
+          {
+            type: "CAREGIVER_PATIENT_UNASSIGNED",
+            title: "Patient Unassigned from Caregiver",
+            message: "A patient was unassigned from a caregiver",
+            metadata: {
+              caregiver_user_id: caregiverId,
+              patient_user_id: patientUserId,
+            },
+          },
+        );
       } catch (_) {}
 
-      return res.json({ message: "Patient unassigned from caregiver successfully" });
+      return res.json({
+        message: "Patient unassigned from caregiver successfully",
+      });
     } catch (err) {
       console.error("UNASSIGN CAREGIVER PATIENT ERROR:", err);
       return res.status(500).json({ message: "Server error" });
     }
-  }
+  },
 );
 
 module.exports = router;
