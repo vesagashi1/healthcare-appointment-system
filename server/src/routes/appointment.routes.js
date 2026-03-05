@@ -2,7 +2,9 @@ const express = require("express");
 const authMiddleware = require("../middlewares/auth.middleware");
 const hasPermission = require("../middlewares/permission.middleware");
 const pool = require("../config/db");
-const { createNotificationsForUsers } = require("../services/notification.service");
+const {
+  createNotificationsForUsers,
+} = require("../services/notification.service");
 
 const router = express.Router();
 
@@ -47,7 +49,7 @@ router.post(
     try {
       let patientLookup = await pool.query(
         `SELECT id FROM patients WHERE user_id = $1`,
-        [patientUserId]
+        [patientUserId],
       );
 
       if (patientLookup.rowCount === 0) {
@@ -57,12 +59,12 @@ router.post(
           VALUES ($1)
           ON CONFLICT (user_id) DO NOTHING
           `,
-          [patientUserId]
+          [patientUserId],
         );
 
         patientLookup = await pool.query(
           `SELECT id FROM patients WHERE user_id = $1`,
-          [patientUserId]
+          [patientUserId],
         );
       }
 
@@ -80,13 +82,13 @@ router.post(
         VALUES ($1, $2, $3, 'requested')
         RETURNING *
         `,
-        [doctor_id, patient_id, appointment_date]
+        [doctor_id, patient_id, appointment_date],
       );
 
       try {
         const doctorLookup = await pool.query(
           `SELECT user_id FROM doctors WHERE id = $1`,
-          [doctor_id]
+          [doctor_id],
         );
         const doctorUserId = doctorLookup.rows[0]?.user_id;
         await createNotificationsForUsers([patientUserId, doctorUserId], {
@@ -101,7 +103,10 @@ router.post(
           },
         });
       } catch (notificationErr) {
-        console.error("APPOINTMENT CREATE NOTIFICATION ERROR:", notificationErr.message);
+        console.error(
+          "APPOINTMENT CREATE NOTIFICATION ERROR:",
+          notificationErr.message,
+        );
       }
 
       return res.status(201).json({
@@ -119,7 +124,7 @@ router.post(
 
       return res.status(500).json({ message: "Server error" });
     }
-  }
+  },
 );
 
 /**
@@ -215,7 +220,7 @@ router.get(
       console.error("GET APPOINTMENTS ERROR:", err);
       res.status(500).json({ message: "Server error" });
     }
-  }
+  },
 );
 
 /**
@@ -254,7 +259,7 @@ router.get(
         JOIN users u_patient ON p.user_id = u_patient.id
         WHERE a.id = $1
         `,
-        [appointmentId]
+        [appointmentId],
       );
 
       if (result.rowCount === 0) {
@@ -272,7 +277,7 @@ router.get(
       if (role === "doctor") {
         const doctorCheck = await pool.query(
           `SELECT d.user_id FROM doctors d WHERE d.id = $1`,
-          [appointment.doctor_id]
+          [appointment.doctor_id],
         );
         if (doctorCheck.rows[0]?.user_id !== userId) {
           return res.status(403).json({
@@ -289,7 +294,7 @@ router.get(
       console.error("GET APPOINTMENT ERROR:", err);
       res.status(500).json({ message: "Server error" });
     }
-  }
+  },
 );
 
 /**
@@ -365,7 +370,7 @@ router.get(
       console.error("GET MY APPOINTMENTS ERROR:", err);
       res.status(500).json({ message: "Server error" });
     }
-  }
+  },
 );
 
 /**
@@ -389,7 +394,7 @@ router.patch(
         JOIN patients p ON p.id = a.patient_id
         WHERE a.id = $1 AND d.user_id = $2
         `,
-        [appointmentId, userId]
+        [appointmentId, userId],
       );
 
       if (check.rowCount === 0) {
@@ -411,7 +416,7 @@ router.patch(
         WHERE id = $1
         RETURNING *
         `,
-        [appointmentId]
+        [appointmentId],
       );
 
       try {
@@ -426,7 +431,10 @@ router.patch(
           },
         });
       } catch (notificationErr) {
-        console.error("APPOINTMENT APPROVE NOTIFICATION ERROR:", notificationErr.message);
+        console.error(
+          "APPOINTMENT APPROVE NOTIFICATION ERROR:",
+          notificationErr.message,
+        );
       }
 
       return res.json({
@@ -437,7 +445,87 @@ router.patch(
       console.error("APPROVE APPOINTMENT ERROR:", err);
       return res.status(500).json({ message: "Server error" });
     }
-  }
+  },
+);
+
+/**
+ * COMPLETE appointment
+ * Doctor (or admin) marks a scheduled/approved appointment as completed
+ */
+router.patch(
+  "/:id/complete",
+  authMiddleware,
+  hasPermission("APPROVE_APPOINTMENT"),
+  async (req, res) => {
+    const appointmentId = req.params.id;
+    const userId = req.user.id;
+    const role = req.user.role;
+
+    try {
+      const check = await pool.query(
+        `
+        SELECT a.*, d.user_id AS doctor_user_id, p.user_id AS patient_user_id
+        FROM appointments a
+        JOIN doctors d ON d.id = a.doctor_id
+        JOIN patients p ON p.id = a.patient_id
+        WHERE a.id = $1
+        `,
+        [appointmentId],
+      );
+
+      if (check.rowCount === 0) {
+        return res.status(404).json({ message: "Appointment not found" });
+      }
+
+      const appointment = check.rows[0];
+
+      // Only the assigned doctor or admin can complete
+      if (role === "doctor" && appointment.doctor_user_id !== userId) {
+        return res.status(403).json({
+          message: "You can only complete your own appointments",
+        });
+      }
+
+      if (!["scheduled", "approved"].includes(appointment.status)) {
+        return res.status(409).json({
+          message: `Cannot complete an appointment with status '${appointment.status}'. Only scheduled or approved appointments can be completed.`,
+        });
+      }
+
+      const result = await pool.query(
+        `UPDATE appointments SET status = 'completed' WHERE id = $1 RETURNING *`,
+        [appointmentId],
+      );
+
+      try {
+        await createNotificationsForUsers(
+          [appointment.patient_user_id, appointment.doctor_user_id],
+          {
+            type: "APPOINTMENT_COMPLETED",
+            title: "Appointment Completed",
+            message: "An appointment has been marked as completed",
+            metadata: {
+              appointment_id: result.rows[0].id,
+              status: result.rows[0].status,
+            },
+          },
+        );
+      } catch (notificationErr) {
+        console.error(
+          "APPOINTMENT COMPLETE NOTIFICATION ERROR:",
+          notificationErr.message,
+        );
+      }
+
+      return res.json({
+        message: "Appointment marked as completed",
+        appointment: result.rows[0],
+      });
+    } catch (err) {
+      console.error("COMPLETE APPOINTMENT ERROR:", err);
+      return res.status(500).json({ message: "Server error" });
+    }
+  },
 );
 
 /**
@@ -462,7 +550,7 @@ router.patch(
         JOIN patients p ON a.patient_id = p.id
         WHERE a.id = $1
         `,
-        [appointmentId]
+        [appointmentId],
       );
 
       if (check.rowCount === 0) {
@@ -496,7 +584,7 @@ router.patch(
         WHERE id = $1
         RETURNING *
         `,
-        [appointmentId]
+        [appointmentId],
       );
 
       try {
@@ -510,10 +598,13 @@ router.patch(
               appointment_id: result.rows[0].id,
               status: result.rows[0].status,
             },
-          }
+          },
         );
       } catch (notificationErr) {
-        console.error("APPOINTMENT CANCEL NOTIFICATION ERROR:", notificationErr.message);
+        console.error(
+          "APPOINTMENT CANCEL NOTIFICATION ERROR:",
+          notificationErr.message,
+        );
       }
 
       res.json({
@@ -524,7 +615,7 @@ router.patch(
       console.error("CANCEL APPOINTMENT ERROR:", err);
       res.status(500).json({ message: "Server error" });
     }
-  }
+  },
 );
 
 module.exports = router;

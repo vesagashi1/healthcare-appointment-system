@@ -1,11 +1,36 @@
 const express = require("express");
+const bcrypt = require("bcrypt");
 const authMiddleware = require("../middlewares/auth.middleware");
 const hasPermission = require("../middlewares/permission.middleware");
+const requireRole = require("../middlewares/role.middleware");
 const canAccessWardPatient = require("../middlewares/canAccessWardPatient");
 const canAccessPatient = require("../middlewares/patientAccess.middleware");
 const canDoctorWritePatient = require("../middlewares/canDoctorWritePatient");
 const auditLog = require("../middlewares/auditLogger");
 const pool = require("../config/db");
+const {
+  createNotificationsForUsers,
+} = require("../services/notification.service");
+
+const listUserIdsForRole = async (roleName) => {
+  const result = await pool.query(
+    `SELECT ur.user_id as id FROM user_roles ur JOIN roles r ON ur.role_id = r.id WHERE r.name = $1`,
+    [roleName],
+  );
+  return result.rows.map((row) => row.id);
+};
+
+const uniqueTruthy = (ids) => [...new Set(ids.filter(Boolean))];
+
+const notifyUsersBestEffort = async (userIds, payload) => {
+  try {
+    const recipients = uniqueTruthy(userIds);
+    if (recipients.length === 0) return;
+    await createNotificationsForUsers(recipients, payload);
+  } catch (err) {
+    console.error("PATIENT NOTIFICATION ERROR:", err.message);
+  }
+};
 
 const router = express.Router();
 
@@ -154,7 +179,8 @@ router.get(
           p.blood_type,
           w.id as ward_id,
           w.name as ward_name,
-          u.created_at
+          u.created_at,
+          COALESCE(u.active, true) as active
         FROM patients p
         JOIN users u ON p.user_id = u.id
         LEFT JOIN wards w ON p.ward_id = w.id
@@ -196,6 +222,122 @@ router.get(
 );
 
 /**
+ * POST create patient
+ * Create a new patient user (admin only)
+ */
+router.post(
+  "/",
+  authMiddleware,
+  hasPermission("MANAGE_PATIENT_PROFILE"),
+  async (req, res) => {
+    const {
+      name,
+      email,
+      password,
+      date_of_birth,
+      gender,
+      blood_type,
+      ward_id,
+    } = req.body;
+
+    if (!name || !email || !password) {
+      return res
+        .status(400)
+        .json({ message: "name, email and password are required" });
+    }
+
+    try {
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+
+        const dup = await client.query(
+          `SELECT id FROM users WHERE email = $1`,
+          [email],
+        );
+        if (dup.rowCount > 0) {
+          await client.query("ROLLBACK");
+          client.release();
+          return res.status(409).json({ message: "Email already in use" });
+        }
+
+        const hashedPw = await bcrypt.hash(password, 10);
+        const userResult = await client.query(
+          `INSERT INTO users (name, email, password, active) VALUES ($1, $2, $3, true) RETURNING id, name, email, created_at, active`,
+          [name, email, hashedPw],
+        );
+        const newUser = userResult.rows[0];
+
+        const roleResult = await client.query(
+          `SELECT id FROM roles WHERE name = 'patient'`,
+        );
+        if (roleResult.rowCount === 0) {
+          await client.query("ROLLBACK");
+          client.release();
+          return res
+            .status(500)
+            .json({ message: "Patient role not found in system" });
+        }
+        await client.query(
+          `INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+          [newUser.id, roleResult.rows[0].id],
+        );
+
+        const patientResult = await client.query(
+          `INSERT INTO patients (user_id, date_of_birth, gender, blood_type, ward_id)
+           VALUES ($1, $2, $3, $4, $5)
+           RETURNING id, date_of_birth, gender, blood_type, ward_id`,
+          [
+            newUser.id,
+            date_of_birth || null,
+            gender || null,
+            blood_type ? String(blood_type).trim().toUpperCase() : null,
+            ward_id || null,
+          ],
+        );
+
+        await client.query("COMMIT");
+        client.release();
+
+        try {
+          const adminUserIds = await listUserIdsForRole("admin");
+          await notifyUsersBestEffort([...adminUserIds, req.user.id], {
+            type: "PATIENT_CREATED",
+            title: "Patient Created",
+            message: `Patient "${newUser.name}" was created`,
+            metadata: {
+              patient_id: patientResult.rows[0].id,
+              patient_user_id: newUser.id,
+              patient_name: newUser.name,
+            },
+          });
+        } catch (_) {}
+
+        return res.status(201).json({
+          message: "Patient created successfully",
+          patient: {
+            ...newUser,
+            id: patientResult.rows[0].id,
+            user_id: newUser.id,
+            date_of_birth: patientResult.rows[0].date_of_birth,
+            gender: patientResult.rows[0].gender,
+            blood_type: patientResult.rows[0].blood_type,
+            ward_id: patientResult.rows[0].ward_id,
+          },
+        });
+      } catch (innerErr) {
+        await client.query("ROLLBACK");
+        client.release();
+        throw innerErr;
+      }
+    } catch (err) {
+      console.error("CREATE PATIENT ERROR:", err);
+      return res.status(500).json({ message: "Server error" });
+    }
+  },
+);
+
+/**
  * GET patient by ID
  * Get patient details
  */
@@ -220,7 +362,8 @@ router.get(
           p.blood_type,
           w.id as ward_id,
           w.name as ward_name,
-          u.created_at
+          u.created_at,
+          COALESCE(u.active, true) as active
         FROM patients p
         JOIN users u ON p.user_id = u.id
         LEFT JOIN wards w ON p.ward_id = w.id
@@ -265,12 +408,33 @@ router.get(
         [patientId],
       );
 
+      const appointmentStatsResult = await pool.query(
+        `SELECT
+           COUNT(*) as total,
+           COUNT(*) FILTER (WHERE status = 'scheduled') as scheduled,
+           COUNT(*) FILTER (WHERE status = 'approved') as approved,
+           COUNT(*) FILTER (WHERE status = 'completed') as completed
+         FROM appointments WHERE patient_id = $1`,
+        [patientId],
+      );
+
+      const recordCountResult = await pool.query(
+        `SELECT COUNT(*) as count FROM patient_records WHERE patient_id = $1`,
+        [patientId],
+      );
+
       res.json({
         message: "Patient retrieved successfully",
         patient: {
           ...patient,
           assigned_staff: staffResult.rows,
           caregivers: caregiversResult.rows,
+          appointment_stats: appointmentStatsResult.rows[0],
+          stats: {
+            staff_count: staffResult.rowCount,
+            caregiver_count: caregiversResult.rowCount,
+            record_count: Number(recordCountResult.rows[0].count),
+          },
         },
       });
     } catch (err) {
@@ -674,56 +838,308 @@ router.patch(
   authMiddleware,
   hasPermission("MANAGE_PATIENT_PROFILE"),
   async (req, res) => {
+    const patientId = parseInt(req.params.patientId, 10);
+    if (Number.isNaN(patientId)) {
+      return res.status(400).json({ message: "Invalid patient id" });
+    }
+
+    const { name, email, date_of_birth, gender, blood_type, ward_id } =
+      req.body;
+
+    if (
+      name === undefined &&
+      email === undefined &&
+      date_of_birth === undefined &&
+      gender === undefined &&
+      blood_type === undefined &&
+      ward_id === undefined
+    ) {
+      return res
+        .status(400)
+        .json({ message: "At least one field is required" });
+    }
+
     try {
-      const { patientId } = req.params;
-      const { ward_id } = req.body;
-      const role = req.user.role;
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
 
-      if (role !== "admin") {
-        return res.status(403).json({
-          message: "Only admin can update patient information",
+        const check = await client.query(
+          `SELECT p.id, u.id as user_id, u.name, u.email, p.date_of_birth, p.gender, p.blood_type, p.ward_id
+           FROM patients p JOIN users u ON p.user_id = u.id WHERE p.id = $1`,
+          [patientId],
+        );
+
+        if (check.rowCount === 0) {
+          await client.query("ROLLBACK");
+          client.release();
+          return res.status(404).json({ message: "Patient not found" });
+        }
+
+        const current = check.rows[0];
+
+        // Update users table (name, email)
+        if (name !== undefined || email !== undefined) {
+          const nextName =
+            name !== undefined ? String(name).trim() : current.name;
+          const nextEmail =
+            email !== undefined
+              ? String(email).trim().toLowerCase()
+              : current.email;
+
+          if (nextEmail !== current.email) {
+            const dup = await client.query(
+              `SELECT id FROM users WHERE email = $1 AND id != $2`,
+              [nextEmail, current.user_id],
+            );
+            if (dup.rowCount > 0) {
+              await client.query("ROLLBACK");
+              client.release();
+              return res.status(409).json({ message: "Email already in use" });
+            }
+          }
+
+          await client.query(
+            `UPDATE users SET name = $1, email = $2 WHERE id = $3`,
+            [nextName, nextEmail, current.user_id],
+          );
+        }
+
+        // Update patients table
+        const nextDob =
+          date_of_birth !== undefined
+            ? date_of_birth === "" || date_of_birth === null
+              ? null
+              : date_of_birth
+            : current.date_of_birth;
+        const nextGender =
+          gender !== undefined
+            ? gender === "" || gender === null
+              ? null
+              : String(gender).trim().toLowerCase()
+            : current.gender;
+        const nextBloodType =
+          blood_type !== undefined
+            ? blood_type === "" || blood_type === null
+              ? null
+              : String(blood_type).trim().toUpperCase()
+            : current.blood_type;
+        const nextWardId =
+          ward_id !== undefined ? ward_id || null : current.ward_id;
+
+        await client.query(
+          `UPDATE patients SET date_of_birth = $1, gender = $2, blood_type = $3, ward_id = $4 WHERE id = $5`,
+          [nextDob, nextGender, nextBloodType, nextWardId, patientId],
+        );
+
+        await client.query("COMMIT");
+
+        const result = await pool.query(
+          `SELECT p.id, u.id as user_id, u.name, u.email, p.date_of_birth, p.gender, p.blood_type,
+                  w.id as ward_id, w.name as ward_name, u.created_at, COALESCE(u.active, true) as active
+           FROM patients p JOIN users u ON p.user_id = u.id LEFT JOIN wards w ON p.ward_id = w.id
+           WHERE p.id = $1`,
+          [patientId],
+        );
+
+        client.release();
+
+        try {
+          const adminUserIds = await listUserIdsForRole("admin");
+          await notifyUsersBestEffort(
+            [...adminUserIds, req.user.id, current.user_id],
+            {
+              type: "PATIENT_UPDATED",
+              title: "Patient Updated",
+              message: `Patient "${result.rows[0].name}" was updated`,
+              metadata: { patient_id: patientId },
+            },
+          );
+        } catch (_) {}
+
+        return res.json({
+          message: "Patient updated successfully",
+          patient: result.rows[0],
         });
+      } catch (innerErr) {
+        await client.query("ROLLBACK");
+        client.release();
+        throw innerErr;
       }
+    } catch (err) {
+      console.error("UPDATE PATIENT ERROR:", err);
+      res.status(500).json({ message: "Server error" });
+    }
+  },
+);
 
-      const check = await pool.query(`SELECT id FROM patients WHERE id = $1`, [
-        patientId,
-      ]);
+/**
+ * DELETE suspend patient
+ * Suspend a patient (sets user.active = false, removes assignments)
+ */
+router.delete(
+  "/:patientId",
+  authMiddleware,
+  hasPermission("MANAGE_PATIENT_PROFILE"),
+  async (req, res) => {
+    const patientId = parseInt(req.params.patientId, 10);
+    if (Number.isNaN(patientId)) {
+      return res.status(400).json({ message: "Invalid patient id" });
+    }
+
+    try {
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+
+        const check = await client.query(
+          `SELECT p.id, u.id as user_id, u.name, COALESCE(u.active, true) as active
+           FROM patients p JOIN users u ON p.user_id = u.id WHERE p.id = $1`,
+          [patientId],
+        );
+
+        if (check.rowCount === 0) {
+          await client.query("ROLLBACK");
+          client.release();
+          return res.status(404).json({ message: "Patient not found" });
+        }
+
+        if (check.rows[0].active === false) {
+          await client.query("ROLLBACK");
+          client.release();
+          return res
+            .status(409)
+            .json({ message: "Patient is already suspended" });
+        }
+
+        const pat = check.rows[0];
+
+        // Remove staff assignments
+        const removeAssignments = await client.query(
+          `DELETE FROM patient_assignments WHERE patient_id = $1`,
+          [patientId],
+        );
+
+        // Remove caregiver links
+        const removeCaregivers = await client.query(
+          `DELETE FROM patient_caregivers WHERE patient_id = $1`,
+          [patientId],
+        );
+
+        // Cancel pending appointments
+        const cancelAppointments = await client.query(
+          `UPDATE appointments SET status = 'cancelled'
+           WHERE patient_id = $1 AND status IN ('requested', 'scheduled', 'approved')`,
+          [patientId],
+        );
+
+        // Set user inactive
+        await client.query(`UPDATE users SET active = false WHERE id = $1`, [
+          pat.user_id,
+        ]);
+
+        await client.query("COMMIT");
+        client.release();
+
+        try {
+          const adminUserIds = await listUserIdsForRole("admin");
+          await notifyUsersBestEffort([...adminUserIds, req.user.id], {
+            type: "PATIENT_SUSPENDED",
+            title: "Patient Suspended",
+            message: `Patient "${pat.name}" was suspended`,
+            metadata: {
+              patient_id: patientId,
+              patient_user_id: pat.user_id,
+              patient_name: pat.name,
+              removed_staff_assignments: removeAssignments.rowCount,
+              removed_caregiver_links: removeCaregivers.rowCount,
+              cancelled_appointments: cancelAppointments.rowCount,
+            },
+          });
+        } catch (_) {}
+
+        return res.json({
+          message: "Patient suspended successfully",
+          patient_id: patientId,
+          removed_staff_assignments: removeAssignments.rowCount,
+          removed_caregiver_links: removeCaregivers.rowCount,
+          cancelled_appointments: cancelAppointments.rowCount,
+        });
+      } catch (innerErr) {
+        await client.query("ROLLBACK");
+        client.release();
+        throw innerErr;
+      }
+    } catch (err) {
+      console.error("SUSPEND PATIENT ERROR:", err);
+      return res.status(500).json({ message: "Server error" });
+    }
+  },
+);
+
+/**
+ * PATCH restore patient
+ * Restore a suspended patient
+ */
+router.patch(
+  "/:patientId/restore",
+  authMiddleware,
+  hasPermission("MANAGE_PATIENT_PROFILE"),
+  async (req, res) => {
+    const patientId = parseInt(req.params.patientId, 10);
+    if (Number.isNaN(patientId)) {
+      return res.status(400).json({ message: "Invalid patient id" });
+    }
+
+    try {
+      const check = await pool.query(
+        `SELECT p.id, u.id as user_id, u.name, COALESCE(u.active, true) as active
+         FROM patients p JOIN users u ON p.user_id = u.id WHERE p.id = $1`,
+        [patientId],
+      );
 
       if (check.rowCount === 0) {
         return res.status(404).json({ message: "Patient not found" });
       }
 
-      if (ward_id !== undefined) {
-        await pool.query(`UPDATE patients SET ward_id = $1 WHERE id = $2`, [
-          ward_id,
-          patientId,
-        ]);
+      if (check.rows[0].active === true) {
+        return res.status(409).json({ message: "Patient is already active" });
       }
 
+      const pat = check.rows[0];
+
+      await pool.query(`UPDATE users SET active = true WHERE id = $1`, [
+        pat.user_id,
+      ]);
+
       const result = await pool.query(
-        `
-        SELECT 
-          p.id,
-          u.id as user_id,
-          u.name,
-          u.email,
-          w.id as ward_id,
-          w.name as ward_name
-        FROM patients p
-        JOIN users u ON p.user_id = u.id
-        LEFT JOIN wards w ON p.ward_id = w.id
-        WHERE p.id = $1
-        `,
+        `SELECT p.id, u.id as user_id, u.name, u.email, p.date_of_birth, p.gender, p.blood_type,
+                w.id as ward_id, w.name as ward_name, u.created_at, COALESCE(u.active, true) as active
+         FROM patients p JOIN users u ON p.user_id = u.id LEFT JOIN wards w ON p.ward_id = w.id
+         WHERE p.id = $1`,
         [patientId],
       );
 
-      res.json({
-        message: "Patient updated successfully",
+      try {
+        const adminUserIds = await listUserIdsForRole("admin");
+        await notifyUsersBestEffort(
+          [...adminUserIds, req.user.id, pat.user_id],
+          {
+            type: "PATIENT_RESTORED",
+            title: "Patient Restored",
+            message: `Patient "${pat.name}" was restored`,
+            metadata: { patient_id: patientId, patient_user_id: pat.user_id },
+          },
+        );
+      } catch (_) {}
+
+      return res.json({
+        message: "Patient restored successfully",
         patient: result.rows[0],
       });
     } catch (err) {
-      console.error("UPDATE PATIENT ERROR:", err);
-      res.status(500).json({ message: "Server error" });
+      console.error("RESTORE PATIENT ERROR:", err);
+      return res.status(500).json({ message: "Server error" });
     }
   },
 );
