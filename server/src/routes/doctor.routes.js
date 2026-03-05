@@ -199,37 +199,42 @@ router.post("/", authMiddleware, requireRole("admin"), async (req, res) => {
   }
 
   try {
-    await pool.query("BEGIN");
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
 
-    const dup = await pool.query(`SELECT id FROM users WHERE email = $1`, [email]);
-    if (dup.rowCount > 0) {
-      await pool.query("ROLLBACK");
-      return res.status(409).json({ message: "Email already in use" });
-    }
+      const dup = await client.query(`SELECT id FROM users WHERE email = $1`, [email]);
+      if (dup.rowCount > 0) {
+        await client.query("ROLLBACK");
+        client.release();
+        return res.status(409).json({ message: "Email already in use" });
+      }
 
-    const hashedPw = await bcrypt.hash(password, 10);
-    const userResult = await pool.query(
-      `INSERT INTO users (name, email, password, active) VALUES ($1, $2, $3, true) RETURNING id, name, email, created_at, active`,
-      [name, email, hashedPw]
-    );
-    const newUser = userResult.rows[0];
+      const hashedPw = await bcrypt.hash(password, 10);
+      const userResult = await client.query(
+        `INSERT INTO users (name, email, password, active) VALUES ($1, $2, $3, true) RETURNING id, name, email, created_at, active`,
+        [name, email, hashedPw]
+      );
+      const newUser = userResult.rows[0];
 
-    const roleResult = await pool.query(`SELECT id FROM roles WHERE name = 'doctor'`);
-    if (roleResult.rowCount === 0) {
-      await pool.query("ROLLBACK");
-      return res.status(500).json({ message: "Doctor role not found in system" });
-    }
-    await pool.query(
-      `INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-      [newUser.id, roleResult.rows[0].id]
-    );
+      const roleResult = await client.query(`SELECT id FROM roles WHERE name = 'doctor'`);
+      if (roleResult.rowCount === 0) {
+        await client.query("ROLLBACK");
+        client.release();
+        return res.status(500).json({ message: "Doctor role not found in system" });
+      }
+      await client.query(
+        `INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+        [newUser.id, roleResult.rows[0].id]
+      );
 
-    const doctorResult = await pool.query(
-      `INSERT INTO doctors (user_id, specialization) VALUES ($1, $2) RETURNING id, specialization`,
-      [newUser.id, specialization]
-    );
+      const doctorResult = await client.query(
+        `INSERT INTO doctors (user_id, specialization) VALUES ($1, $2) RETURNING id, specialization`,
+        [newUser.id, specialization]
+      );
 
-    await pool.query("COMMIT");
+      await client.query("COMMIT");
+      client.release();
 
     try {
       const adminUserIds = await listUserIdsForRole("admin");
@@ -245,8 +250,12 @@ router.post("/", authMiddleware, requireRole("admin"), async (req, res) => {
       message: "Doctor created successfully",
       doctor: { ...newUser, id: doctorResult.rows[0].id, specialization: doctorResult.rows[0].specialization },
     });
+    } catch (innerErr) {
+      await client.query("ROLLBACK");
+      client.release();
+      throw innerErr;
+    }
   } catch (err) {
-    await pool.query("ROLLBACK");
     console.error("CREATE DOCTOR ERROR:", err);
     return res.status(500).json({ message: "Server error" });
   }
@@ -326,39 +335,44 @@ router.delete("/:id", authMiddleware, requireRole("admin"), async (req, res) => 
   }
 
   try {
-    await pool.query("BEGIN");
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
 
-    const doctorCheck = await pool.query(
-      `SELECT d.id, u.id as user_id, u.name, COALESCE(u.active, true) as active
-       FROM doctors d JOIN users u ON d.user_id = u.id WHERE d.id = $1`,
-      [doctorId]
-    );
+      const doctorCheck = await client.query(
+        `SELECT d.id, u.id as user_id, u.name, COALESCE(u.active, true) as active
+         FROM doctors d JOIN users u ON d.user_id = u.id WHERE d.id = $1`,
+        [doctorId]
+      );
 
-    if (doctorCheck.rowCount === 0) {
-      await pool.query("ROLLBACK");
-      return res.status(404).json({ message: "Doctor not found" });
-    }
+      if (doctorCheck.rowCount === 0) {
+        await client.query("ROLLBACK");
+        client.release();
+        return res.status(404).json({ message: "Doctor not found" });
+      }
 
-    if (doctorCheck.rows[0].active === false) {
-      await pool.query("ROLLBACK");
-      return res.status(409).json({ message: "Doctor is already suspended" });
-    }
+      if (doctorCheck.rows[0].active === false) {
+        await client.query("ROLLBACK");
+        client.release();
+        return res.status(409).json({ message: "Doctor is already suspended" });
+      }
 
-    const doc = doctorCheck.rows[0];
+      const doc = doctorCheck.rows[0];
 
-    const removeWards = await pool.query(`DELETE FROM doctor_wards WHERE doctor_id = $1`, [doctorId]);
-    const removeAssignments = await pool.query(
-      `DELETE FROM patient_assignments WHERE staff_id = $1 AND role = 'doctor'`,
-      [doc.user_id]
-    );
-    const cancelAppointments = await pool.query(
-      `UPDATE appointments SET status = 'cancelled' WHERE doctor_id = $1 AND status IN ('requested', 'scheduled', 'approved')`,
-      [doctorId]
-    );
+      const removeWards = await client.query(`DELETE FROM doctor_wards WHERE doctor_id = $1`, [doctorId]);
+      const removeAssignments = await client.query(
+        `DELETE FROM patient_assignments WHERE staff_id = $1 AND role = 'doctor'`,
+        [doc.user_id]
+      );
+      const cancelAppointments = await client.query(
+        `UPDATE appointments SET status = 'cancelled' WHERE doctor_id = $1 AND status IN ('requested', 'scheduled', 'approved')`,
+        [doctorId]
+      );
 
-    await pool.query(`UPDATE users SET active = false WHERE id = $1`, [doc.user_id]);
+      await client.query(`UPDATE users SET active = false WHERE id = $1`, [doc.user_id]);
 
-    await pool.query("COMMIT");
+      await client.query("COMMIT");
+      client.release();
 
     try {
       const adminUserIds = await listUserIdsForRole("admin");
@@ -384,8 +398,12 @@ router.delete("/:id", authMiddleware, requireRole("admin"), async (req, res) => 
       removed_patient_assignments: removeAssignments.rowCount,
       cancelled_appointments: cancelAppointments.rowCount,
     });
+    } catch (innerErr) {
+      await client.query("ROLLBACK");
+      client.release();
+      throw innerErr;
+    }
   } catch (err) {
-    await pool.query("ROLLBACK");
     console.error("SUSPEND DOCTOR ERROR:", err);
     return res.status(500).json({ message: "Server error" });
   }

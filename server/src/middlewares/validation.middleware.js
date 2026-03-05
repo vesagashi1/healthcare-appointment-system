@@ -3,7 +3,7 @@ const isValidEmail = (email) =>
 
 const validateRegisterPayload = (req, res, next) => {
   const { name, email, password, role } = req.body || {};
-  const allowedRoles = ["admin", "doctor", "nurse", "patient", "caregiver"];
+  const allowedRoles = ["doctor", "nurse", "patient", "caregiver"];
 
   if (!name || typeof name !== "string" || name.trim().length < 2) {
     return res.status(400).json({ message: "Invalid name" });

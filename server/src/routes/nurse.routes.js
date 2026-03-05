@@ -164,38 +164,43 @@ router.post(
     }
 
     try {
-      await pool.query("BEGIN");
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
 
-      const dup = await pool.query(`SELECT id FROM users WHERE email = $1`, [
-        email,
-      ]);
-      if (dup.rowCount > 0) {
-        await pool.query("ROLLBACK");
-        return res.status(409).json({ message: "Email already in use" });
-      }
+        const dup = await client.query(`SELECT id FROM users WHERE email = $1`, [
+          email,
+        ]);
+        if (dup.rowCount > 0) {
+          await client.query("ROLLBACK");
+          client.release();
+          return res.status(409).json({ message: "Email already in use" });
+        }
 
-      const hashedPw = await bcrypt.hash(password, 10);
-      const userResult = await pool.query(
-        `INSERT INTO users (name, email, password, active) VALUES ($1, $2, $3, true) RETURNING id, name, email, created_at, active`,
-        [name, email, hashedPw]
-      );
-      const newUser = userResult.rows[0];
+        const hashedPw = await bcrypt.hash(password, 10);
+        const userResult = await client.query(
+          `INSERT INTO users (name, email, password, active) VALUES ($1, $2, $3, true) RETURNING id, name, email, created_at, active`,
+          [name, email, hashedPw]
+        );
+        const newUser = userResult.rows[0];
 
-      const roleResult = await pool.query(
-        `SELECT id FROM roles WHERE name = 'nurse'`
-      );
-      if (roleResult.rowCount === 0) {
-        await pool.query("ROLLBACK");
-        return res
-          .status(500)
-          .json({ message: "Nurse role not found in system" });
-      }
-      await pool.query(
-        `INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-        [newUser.id, roleResult.rows[0].id]
-      );
+        const roleResult = await client.query(
+          `SELECT id FROM roles WHERE name = 'nurse'`
+        );
+        if (roleResult.rowCount === 0) {
+          await client.query("ROLLBACK");
+          client.release();
+          return res
+            .status(500)
+            .json({ message: "Nurse role not found in system" });
+        }
+        await client.query(
+          `INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+          [newUser.id, roleResult.rows[0].id]
+        );
 
-      await pool.query("COMMIT");
+        await client.query("COMMIT");
+        client.release();
 
       try {
         const adminUserIds = await listUserIdsForRole("admin");
@@ -210,8 +215,12 @@ router.post(
       return res
         .status(201)
         .json({ message: "Nurse created successfully", nurse: newUser });
+      } catch (innerErr) {
+        await client.query("ROLLBACK");
+        client.release();
+        throw innerErr;
+      }
     } catch (err) {
-      await pool.query("ROLLBACK");
       console.error("CREATE NURSE ERROR:", err);
       return res.status(500).json({ message: "Server error" });
     }
@@ -302,40 +311,45 @@ router.delete(
     }
 
     try {
-      await pool.query("BEGIN");
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
 
-      const nurseCheck = await pool.query(
-        `SELECT u.id, u.name, COALESCE(u.active, true) as active
-         FROM users u JOIN user_roles ur ON u.id = ur.user_id JOIN roles r ON ur.role_id = r.id
-         WHERE u.id = $1 AND r.name = 'nurse'`,
-        [nurseId]
-      );
+        const nurseCheck = await client.query(
+          `SELECT u.id, u.name, COALESCE(u.active, true) as active
+           FROM users u JOIN user_roles ur ON u.id = ur.user_id JOIN roles r ON ur.role_id = r.id
+           WHERE u.id = $1 AND r.name = 'nurse'`,
+          [nurseId]
+        );
 
-      if (nurseCheck.rowCount === 0) {
-        await pool.query("ROLLBACK");
-        return res.status(404).json({ message: "Nurse not found" });
-      }
+        if (nurseCheck.rowCount === 0) {
+          await client.query("ROLLBACK");
+          client.release();
+          return res.status(404).json({ message: "Nurse not found" });
+        }
 
-      if (nurseCheck.rows[0].active === false) {
-        await pool.query("ROLLBACK");
-        return res.status(409).json({ message: "Nurse is already suspended" });
-      }
+        if (nurseCheck.rows[0].active === false) {
+          await client.query("ROLLBACK");
+          client.release();
+          return res.status(409).json({ message: "Nurse is already suspended" });
+        }
 
-      const removeWards = await pool.query(
-        `DELETE FROM nurse_wards WHERE nurse_id = $1`,
-        [nurseId]
-      );
+        const removeWards = await client.query(
+          `DELETE FROM nurse_wards WHERE nurse_id = $1`,
+          [nurseId]
+        );
 
-      const removeAssignments = await pool.query(
-        `DELETE FROM patient_assignments WHERE staff_id = $1 AND role = 'nurse'`,
-        [nurseId]
-      );
+        const removeAssignments = await client.query(
+          `DELETE FROM patient_assignments WHERE staff_id = $1 AND role = 'nurse'`,
+          [nurseId]
+        );
 
-      await pool.query(`UPDATE users SET active = false WHERE id = $1`, [
-        nurseId,
-      ]);
+        await client.query(`UPDATE users SET active = false WHERE id = $1`, [
+          nurseId,
+        ]);
 
-      await pool.query("COMMIT");
+        await client.query("COMMIT");
+        client.release();
 
       try {
         const adminUserIds = await listUserIdsForRole("admin");
@@ -359,8 +373,12 @@ router.delete(
         removed_ward_links: removeWards.rowCount,
         removed_patient_assignments: removeAssignments.rowCount,
       });
+      } catch (innerErr) {
+        await client.query("ROLLBACK");
+        client.release();
+        throw innerErr;
+      }
     } catch (err) {
-      await pool.query("ROLLBACK");
       console.error("SUSPEND NURSE ERROR:", err);
       return res.status(500).json({ message: "Server error" });
     }

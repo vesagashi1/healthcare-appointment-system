@@ -401,44 +401,49 @@ router.delete(
     }
 
     try {
-      await pool.query("BEGIN");
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
 
-      const check = await pool.query(
-        `SELECT id, name, active FROM wards WHERE id = $1`,
-        [wardId]
-      );
+        const check = await client.query(
+          `SELECT id, name, active FROM wards WHERE id = $1`,
+          [wardId]
+        );
 
-      if (check.rowCount === 0) {
-        await pool.query("ROLLBACK");
-        return res.status(404).json({ message: "Ward not found" });
-      }
+        if (check.rowCount === 0) {
+          await client.query("ROLLBACK");
+          client.release();
+          return res.status(404).json({ message: "Ward not found" });
+        }
 
-      if (check.rows[0].active === false) {
-        await pool.query("ROLLBACK");
-        return res.status(409).json({ message: "Ward is already inactive" });
-      }
+        if (check.rows[0].active === false) {
+          await client.query("ROLLBACK");
+          client.release();
+          return res.status(409).json({ message: "Ward is already inactive" });
+        }
 
-      const unassignPatients = await pool.query(
-        `UPDATE patients SET ward_id = NULL WHERE ward_id = $1`,
-        [wardId]
-      );
+        const unassignPatients = await client.query(
+          `UPDATE patients SET ward_id = NULL WHERE ward_id = $1`,
+          [wardId]
+        );
 
-      const removeDoctors = await pool.query(
-        `DELETE FROM doctor_wards WHERE ward_id = $1`,
-        [wardId]
-      );
+        const removeDoctors = await client.query(
+          `DELETE FROM doctor_wards WHERE ward_id = $1`,
+          [wardId]
+        );
 
-      const removeNurses = await pool.query(
-        `DELETE FROM nurse_wards WHERE ward_id = $1`,
-        [wardId]
-      );
+        const removeNurses = await client.query(
+          `DELETE FROM nurse_wards WHERE ward_id = $1`,
+          [wardId]
+        );
 
-      await pool.query(
-        `UPDATE wards SET active = false WHERE id = $1`,
-        [wardId]
-      );
+        await client.query(
+          `UPDATE wards SET active = false WHERE id = $1`,
+          [wardId]
+        );
 
-      await pool.query("COMMIT");
+        await client.query("COMMIT");
+        client.release();
 
       try {
         const adminUserIds = await listUserIdsForRole("admin");
@@ -466,8 +471,12 @@ router.delete(
         removed_doctor_links: removeDoctors.rowCount,
         removed_nurse_links: removeNurses.rowCount,
       });
+      } catch (innerErr) {
+        await client.query("ROLLBACK");
+        client.release();
+        throw innerErr;
+      }
     } catch (err) {
-      await pool.query("ROLLBACK");
       console.error("DEACTIVATE WARD ERROR:", err);
       return res.status(500).json({ message: "Server error" });
     }

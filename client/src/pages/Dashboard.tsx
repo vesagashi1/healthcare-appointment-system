@@ -34,10 +34,21 @@ const Dashboard = () => {
 
         setStats({
           appointments:
-            appointmentsRes.status === 'fulfilled' ? appointmentsRes.value.data.count || 0 : 0,
-          patients: patientsRes.status === 'fulfilled' ? patientsRes.value.data.count || 0 : 0,
-          doctors: doctorsRes.status === 'fulfilled' ? doctorsRes.value.data.count || 0 : 0,
-          records: recordsRes.status === 'fulfilled' ? recordsRes.value.data.count || 0 : 0,
+            appointmentsRes.status === 'fulfilled'
+              ? (Array.isArray(appointmentsRes.value.data) ? appointmentsRes.value.data.length : appointmentsRes.value.data.count || 0)
+              : 0,
+          patients:
+            patientsRes.status === 'fulfilled'
+              ? (Array.isArray(patientsRes.value.data) ? patientsRes.value.data.length : patientsRes.value.data.count || 0)
+              : 0,
+          doctors:
+            doctorsRes.status === 'fulfilled'
+              ? (Array.isArray(doctorsRes.value.data) ? doctorsRes.value.data.length : doctorsRes.value.data.count || 0)
+              : 0,
+          records:
+            recordsRes.status === 'fulfilled'
+              ? (Array.isArray(recordsRes.value.data) ? recordsRes.value.data.length : recordsRes.value.data.count || 0)
+              : 0,
         });
       } catch (error) {
         console.error('Error fetching stats:', error);

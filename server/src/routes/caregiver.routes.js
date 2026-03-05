@@ -311,41 +311,46 @@ router.post(
     }
 
     try {
-      await pool.query("BEGIN");
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
 
-      const dup = await pool.query(`SELECT id FROM users WHERE email = $1`, [
-        email,
-      ]);
-      if (dup.rowCount > 0) {
-        await pool.query("ROLLBACK");
-        return res.status(409).json({ message: "Email already in use" });
-      }
+        const dup = await client.query(`SELECT id FROM users WHERE email = $1`, [
+          email,
+        ]);
+        if (dup.rowCount > 0) {
+          await client.query("ROLLBACK");
+          client.release();
+          return res.status(409).json({ message: "Email already in use" });
+        }
 
-      const hashedPw = await bcrypt.hash(password, 10);
-      const userResult = await pool.query(
-        `INSERT INTO users (name, email, password, active)
-         VALUES ($1, $2, $3, true)
-         RETURNING id, name, email, created_at, active`,
-        [name, email, hashedPw]
-      );
-      const newUser = userResult.rows[0];
+        const hashedPw = await bcrypt.hash(password, 10);
+        const userResult = await client.query(
+          `INSERT INTO users (name, email, password, active)
+           VALUES ($1, $2, $3, true)
+           RETURNING id, name, email, created_at, active`,
+          [name, email, hashedPw]
+        );
+        const newUser = userResult.rows[0];
 
-      const roleResult = await pool.query(
-        `SELECT id FROM roles WHERE name = 'caregiver'`
-      );
-      if (roleResult.rowCount === 0) {
-        await pool.query("ROLLBACK");
-        return res
-          .status(500)
-          .json({ message: "Caregiver role not found in system" });
-      }
+        const roleResult = await client.query(
+          `SELECT id FROM roles WHERE name = 'caregiver'`
+        );
+        if (roleResult.rowCount === 0) {
+          await client.query("ROLLBACK");
+          client.release();
+          return res
+            .status(500)
+            .json({ message: "Caregiver role not found in system" });
+        }
 
-      await pool.query(
-        `INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-        [newUser.id, roleResult.rows[0].id]
-      );
+        await client.query(
+          `INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+          [newUser.id, roleResult.rows[0].id]
+        );
 
-      await pool.query("COMMIT");
+        await client.query("COMMIT");
+        client.release();
 
       try {
         const adminUserIds = await listUserIdsForRole("admin");
@@ -364,8 +369,12 @@ router.post(
         message: "Caregiver created successfully",
         caregiver: newUser,
       });
+      } catch (innerErr) {
+        await client.query("ROLLBACK");
+        client.release();
+        throw innerErr;
+      }
     } catch (err) {
-      await pool.query("ROLLBACK");
       console.error("CREATE CAREGIVER ERROR:", err);
       return res.status(500).json({ message: "Server error" });
     }
@@ -478,16 +487,24 @@ router.delete(
         return res.status(400).json({ message: "Caregiver is already suspended" });
       }
 
-      await pool.query("BEGIN");
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
 
-      await pool.query(`DELETE FROM patient_caregivers WHERE caregiver_id = $1`, [
-        caregiverId,
-      ]);
-      await pool.query(`UPDATE users SET active = false WHERE id = $1`, [
-        caregiverId,
-      ]);
+        await client.query(`DELETE FROM patient_caregivers WHERE caregiver_id = $1`, [
+          caregiverId,
+        ]);
+        await client.query(`UPDATE users SET active = false WHERE id = $1`, [
+          caregiverId,
+        ]);
 
-      await pool.query("COMMIT");
+        await client.query("COMMIT");
+        client.release();
+      } catch (innerErr) {
+        await client.query("ROLLBACK");
+        client.release();
+        throw innerErr;
+      }
 
       try {
         const adminUserIds = await listUserIdsForRole("admin");
@@ -501,7 +518,6 @@ router.delete(
 
       return res.json({ message: "Caregiver suspended successfully" });
     } catch (err) {
-      await pool.query("ROLLBACK");
       console.error("SUSPEND CAREGIVER ERROR:", err);
       return res.status(500).json({ message: "Server error" });
     }

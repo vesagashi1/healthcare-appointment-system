@@ -156,7 +156,7 @@ const login = async (req, res) => {
 
     const result = await pool.query(
       `
-      SELECT u.id, u.name, u.email, u.password, r.name AS role
+      SELECT u.id, u.name, u.email, u.password, u.active, r.name AS role
       FROM users u
       JOIN user_roles ur ON u.id = ur.user_id
       JOIN roles r ON ur.role_id = r.id
@@ -170,6 +170,10 @@ const login = async (req, res) => {
     }
 
     const user = result.rows[0];
+
+    if (user.active === false) {
+      return res.status(403).json({ message: "Account is suspended" });
+    }
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
@@ -241,7 +245,7 @@ const refresh = async (req, res) => {
 
     const userResult = await pool.query(
       `
-      SELECT u.id, u.name, u.email, r.name AS role
+      SELECT u.id, u.name, u.email, u.active, r.name AS role
       FROM users u
       JOIN user_roles ur ON u.id = ur.user_id
       JOIN roles r ON ur.role_id = r.id
@@ -255,6 +259,10 @@ const refresh = async (req, res) => {
     }
 
     const user = userResult.rows[0];
+
+    if (user.active === false) {
+      return res.status(403).json({ message: "Account is suspended" });
+    }
 
     await pool.query(
       `
