@@ -8,7 +8,9 @@ const XLSX = require("xlsx");
 const router = express.Router();
 
 const normalizeExportFormat = (value) => {
-  const format = String(value || "json").toLowerCase().trim();
+  const format = String(value || "json")
+    .toLowerCase()
+    .trim();
   if (format === "xlsx" || format === "xls" || format === "excel") {
     return "excel";
   }
@@ -20,7 +22,7 @@ const normalizeExportFormat = (value) => {
 
 // Helper function to format data
 const formatPatientData = (rows) => {
-  return rows.map(row => ({
+  return rows.map((row) => ({
     id: row.id,
     user_id: row.user_id,
     name: row.name,
@@ -30,29 +32,29 @@ const formatPatientData = (rows) => {
     blood_type: row.blood_type,
     ward_id: row.ward_id,
     ward_name: row.ward_name,
-    created_at: row.created_at
+    created_at: row.created_at,
   }));
 };
 
 const formatAppointmentData = (rows) => {
-  return rows.map(row => ({
+  return rows.map((row) => ({
     id: row.id,
     appointment_date: row.appointment_date,
     status: row.status,
     patient_name: row.patient_name,
     doctor_name: row.doctor_name,
-    created_at: row.created_at
+    created_at: row.created_at,
   }));
 };
 
 const formatRecordData = (rows) => {
-  return rows.map(row => ({
+  return rows.map((row) => ({
     id: row.id,
     patient_name: row.patient_name,
     record_type: row.record_type,
     content: row.content,
     created_by: row.created_by_name,
-    created_at: row.created_at
+    created_at: row.created_at,
   }));
 };
 
@@ -94,7 +96,10 @@ router.get(
         const parser = new Parser();
         const csv = parser.parse(data);
         res.setHeader("Content-Type", "text/csv");
-        res.setHeader("Content-Disposition", "attachment; filename=patients.csv");
+        res.setHeader(
+          "Content-Disposition",
+          "attachment; filename=patients.csv",
+        );
         return res.send(csv);
       }
 
@@ -102,9 +107,18 @@ router.get(
         const worksheet = XLSX.utils.json_to_sheet(data);
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, "Patients");
-        const excelBuffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
-        res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-        res.setHeader("Content-Disposition", "attachment; filename=patients.xlsx");
+        const excelBuffer = XLSX.write(workbook, {
+          type: "buffer",
+          bookType: "xlsx",
+        });
+        res.setHeader(
+          "Content-Type",
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        );
+        res.setHeader(
+          "Content-Disposition",
+          "attachment; filename=patients.xlsx",
+        );
         return res.send(excelBuffer);
       }
 
@@ -112,13 +126,13 @@ router.get(
       res.json({
         message: "Patients exported successfully",
         count: data.length,
-        data: data
+        data: data,
       });
     } catch (err) {
       console.error("EXPORT PATIENTS ERROR:", err);
       res.status(500).json({ message: "Server error" });
     }
-  }
+  },
 );
 
 /**
@@ -156,11 +170,16 @@ router.get(
           const parser = new Parser();
           const csv = parser.parse(data);
           res.setHeader("Content-Type", "text/csv; charset=utf-8");
-          res.setHeader("Content-Disposition", "attachment; filename=appointments.csv");
+          res.setHeader(
+            "Content-Disposition",
+            "attachment; filename=appointments.csv",
+          );
           return res.send(csv);
         } catch (err) {
           console.error("CSV parsing error:", err);
-          return res.status(500).json({ message: "Error generating CSV", error: err.message });
+          return res
+            .status(500)
+            .json({ message: "Error generating CSV", error: err.message });
         }
       }
 
@@ -168,22 +187,31 @@ router.get(
         const worksheet = XLSX.utils.json_to_sheet(data);
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, "Appointments");
-        const excelBuffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
-        res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-        res.setHeader("Content-Disposition", "attachment; filename=appointments.xlsx");
+        const excelBuffer = XLSX.write(workbook, {
+          type: "buffer",
+          bookType: "xlsx",
+        });
+        res.setHeader(
+          "Content-Type",
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        );
+        res.setHeader(
+          "Content-Disposition",
+          "attachment; filename=appointments.xlsx",
+        );
         return res.send(excelBuffer);
       }
 
       res.json({
         message: "Appointments exported successfully",
         count: data.length,
-        data: data
+        data: data,
       });
     } catch (err) {
       console.error("EXPORT APPOINTMENTS ERROR:", err);
       res.status(500).json({ message: "Server error" });
     }
-  }
+  },
 );
 
 /**
@@ -219,7 +247,10 @@ router.get(
         const parser = new Parser();
         const csv = parser.parse(data);
         res.setHeader("Content-Type", "text/csv");
-        res.setHeader("Content-Disposition", "attachment; filename=records.csv");
+        res.setHeader(
+          "Content-Disposition",
+          "attachment; filename=records.csv",
+        );
         return res.send(csv);
       }
 
@@ -227,22 +258,31 @@ router.get(
         const worksheet = XLSX.utils.json_to_sheet(data);
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, "Records");
-        const excelBuffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
-        res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-        res.setHeader("Content-Disposition", "attachment; filename=records.xlsx");
+        const excelBuffer = XLSX.write(workbook, {
+          type: "buffer",
+          bookType: "xlsx",
+        });
+        res.setHeader(
+          "Content-Type",
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        );
+        res.setHeader(
+          "Content-Disposition",
+          "attachment; filename=records.xlsx",
+        );
         return res.send(excelBuffer);
       }
 
       res.json({
         message: "Records exported successfully",
         count: data.length,
-        data: data
+        data: data,
       });
     } catch (err) {
       console.error("EXPORT RECORDS ERROR:", err);
       res.status(500).json({ message: "Server error" });
     }
-  }
+  },
 );
 
 module.exports = router;

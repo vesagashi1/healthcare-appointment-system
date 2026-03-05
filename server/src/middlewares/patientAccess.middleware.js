@@ -12,7 +12,7 @@ const canAccessPatient = async (req, res, next) => {
 
     const patientLookup = await pool.query(
       `SELECT id, user_id FROM patients WHERE id = $1`,
-      [patientId]
+      [patientId],
     );
 
     if (patientLookup.rowCount === 0) {
@@ -48,7 +48,7 @@ const canAccessPatient = async (req, res, next) => {
           AND patient_id = $2
           AND role = 'nurse'
         `,
-        [userId, patientId]
+        [userId, patientId],
       );
 
       if (result.rowCount > 0) {
@@ -65,7 +65,7 @@ const canAccessPatient = async (req, res, next) => {
         WHERE caregiver_id = $1
           AND patient_id = $2
         `,
-        [userId, patientId]
+        [userId, patientId],
       );
 
       if (result.rowCount > 0) {

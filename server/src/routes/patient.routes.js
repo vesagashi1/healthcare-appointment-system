@@ -9,7 +9,6 @@ const pool = require("../config/db");
 
 const router = express.Router();
 
-
 /**
  * POST create record for my profile
  * Create a record for current user's patient profile
@@ -32,18 +31,20 @@ router.post(
 
       const patientResult = await pool.query(
         "SELECT id FROM patients WHERE user_id = $1",
-        [userId]
+        [userId],
       );
 
       if (patientResult.rowCount === 0 && role === "patient") {
         return res.status(404).json({ message: "Patient profile not found" });
       }
 
-      const patientTableId = role === "patient" ? patientResult.rows[0].id : null;
-      
+      const patientTableId =
+        role === "patient" ? patientResult.rows[0].id : null;
+
       if (!patientTableId) {
         return res.status(400).json({
-          message: "Please specify patient_id when creating records as admin/doctor",
+          message:
+            "Please specify patient_id when creating records as admin/doctor",
         });
       }
 
@@ -54,7 +55,7 @@ router.post(
         VALUES ($1, $2, $3, $4)
         RETURNING *
         `,
-        [patientTableId, userId, record_type, content]
+        [patientTableId, userId, record_type, content],
       );
 
       await auditLog({
@@ -71,15 +72,15 @@ router.post(
       console.error("CREATE MY RECORD ERROR:", err);
       res.status(500).json({ message: "Server error" });
     }
-  }
+  },
 );
 
 router.post(
   "/:patientId/records",
   authMiddleware,
   hasPermission("CREATE_PATIENT_RECORD"),
-  canDoctorWritePatient, 
-  canAccessPatient,     
+  canDoctorWritePatient,
+  canAccessPatient,
   async (req, res) => {
     const { patientId } = req.params;
     const { record_type, content } = req.body;
@@ -93,7 +94,7 @@ router.post(
 
     const patientCheck = await pool.query(
       "SELECT id FROM patients WHERE id = $1",
-      [patientId]
+      [patientId],
     );
 
     if (patientCheck.rowCount === 0) {
@@ -107,7 +108,7 @@ router.post(
       VALUES ($1, $2, $3, $4)
       RETURNING *
       `,
-      [patientId, createdBy, record_type, content]
+      [patientId, createdBy, record_type, content],
     );
 
     await auditLog({
@@ -120,7 +121,7 @@ router.post(
       message: "Medical record created",
       record: result.rows[0],
     });
-  }
+  },
 );
 
 /**
@@ -191,7 +192,7 @@ router.get(
       console.error("GET PATIENTS ERROR:", err);
       res.status(500).json({ message: "Server error" });
     }
-  }
+  },
 );
 
 /**
@@ -225,7 +226,7 @@ router.get(
         LEFT JOIN wards w ON p.ward_id = w.id
         WHERE p.id = $1
         `,
-        [patientId]
+        [patientId],
       );
 
       if (patientResult.rowCount === 0) {
@@ -245,7 +246,7 @@ router.get(
         JOIN users u ON pa.staff_id = u.id
         WHERE pa.patient_id = $1
         `,
-        [patientId]
+        [patientId],
       );
 
       const caregiversResult = await pool.query(
@@ -261,7 +262,7 @@ router.get(
         JOIN users u ON pc.caregiver_id = u.id
         WHERE pc.patient_id = $1
         `,
-        [patientId]
+        [patientId],
       );
 
       res.json({
@@ -276,29 +277,26 @@ router.get(
       console.error("GET PATIENT ERROR:", err);
       res.status(500).json({ message: "Server error" });
     }
-  }
+  },
 );
 
 /**
  * GET my profile
  * Get current patient's own profile
  */
-router.get(
-  "/my-profile/details",
-  authMiddleware,
-  async (req, res) => {
-    try {
-      const userId = req.user.id;
-      const role = req.user.role;
+router.get("/my-profile/details", authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const role = req.user.role;
 
-      if (role !== "patient") {
-        return res.status(403).json({
-          message: "Only patients can access their profile",
-        });
-      }
+    if (role !== "patient") {
+      return res.status(403).json({
+        message: "Only patients can access their profile",
+      });
+    }
 
-      const result = await pool.query(
-        `
+    const result = await pool.query(
+      `
         SELECT 
           p.id,
           u.id as user_id,
@@ -315,21 +313,21 @@ router.get(
         LEFT JOIN wards w ON p.ward_id = w.id
         WHERE p.user_id = $1
         `,
-        [userId]
-      );
+      [userId],
+    );
 
-      if (result.rowCount === 0) {
-        await pool.query(
-          `
+    if (result.rowCount === 0) {
+      await pool.query(
+        `
           INSERT INTO patients (user_id)
           VALUES ($1)
           ON CONFLICT (user_id) DO NOTHING
           `,
-          [userId]
-        );
+        [userId],
+      );
 
-        const retry = await pool.query(
-          `
+      const retry = await pool.query(
+        `
           SELECT 
             p.id,
             u.id as user_id,
@@ -346,75 +344,71 @@ router.get(
           LEFT JOIN wards w ON p.ward_id = w.id
           WHERE p.user_id = $1
           `,
-          [userId]
-        );
+        [userId],
+      );
 
-        if (retry.rowCount === 0) {
-          return res.status(404).json({ message: "Patient profile not found" });
-        }
-
-        return res.json({
-          message: "Profile retrieved successfully",
-          patient: retry.rows[0],
-        });
+      if (retry.rowCount === 0) {
+        return res.status(404).json({ message: "Patient profile not found" });
       }
 
-      res.json({
+      return res.json({
         message: "Profile retrieved successfully",
-        patient: result.rows[0],
+        patient: retry.rows[0],
       });
-    } catch (err) {
-      console.error("GET MY PROFILE ERROR:", err);
-      res.status(500).json({ message: "Server error" });
     }
+
+    res.json({
+      message: "Profile retrieved successfully",
+      patient: result.rows[0],
+    });
+  } catch (err) {
+    console.error("GET MY PROFILE ERROR:", err);
+    res.status(500).json({ message: "Server error" });
   }
-);
+});
 
 /**
  * PATCH my profile
  * Update current patient's own profile fields
  */
-router.patch(
-  "/my-profile/details",
-  authMiddleware,
-  async (req, res) => {
-    const userId = req.user.id;
-    const role = req.user.role;
-    const { name, email, date_of_birth, gender, blood_type } = req.body;
+router.patch("/my-profile/details", authMiddleware, async (req, res) => {
+  const userId = req.user.id;
+  const role = req.user.role;
+  const { name, email, date_of_birth, gender, blood_type } = req.body;
 
-    if (role !== "patient") {
-      return res.status(403).json({
-        message: "Only patients can update their profile",
-      });
-    }
+  if (role !== "patient") {
+    return res.status(403).json({
+      message: "Only patients can update their profile",
+    });
+  }
 
-    if (
-      name === undefined &&
-      email === undefined &&
-      date_of_birth === undefined &&
-      gender === undefined &&
-      blood_type === undefined
-    ) {
-      return res.status(400).json({
-        message: "At least one field is required",
-      });
-    }
+  if (
+    name === undefined &&
+    email === undefined &&
+    date_of_birth === undefined &&
+    gender === undefined &&
+    blood_type === undefined
+  ) {
+    return res.status(400).json({
+      message: "At least one field is required",
+    });
+  }
 
-    const client = await pool.connect();
-    try {
-      await client.query("BEGIN");
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
 
-      await client.query(
-        `
+    await client.query(
+      `
         INSERT INTO patients (user_id)
         VALUES ($1)
         ON CONFLICT (user_id) DO NOTHING
         `,
-        [userId]
-      );
+      [userId],
+    );
 
-      const currentProfile = await client.query(
-        `
+    const currentProfile = await client.query(
+      `
         SELECT 
           u.id as user_id,
           u.name,
@@ -426,99 +420,102 @@ router.patch(
         JOIN patients p ON p.user_id = u.id
         WHERE u.id = $1
         `,
-        [userId]
+      [userId],
+    );
+
+    if (currentProfile.rowCount === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ message: "Patient profile not found" });
+    }
+
+    const current = currentProfile.rows[0];
+
+    const nextName = name !== undefined ? String(name).trim() : current.name;
+    const nextEmail =
+      email !== undefined ? String(email).trim().toLowerCase() : current.email;
+    const nextDob =
+      date_of_birth !== undefined
+        ? date_of_birth === "" || date_of_birth === null
+          ? null
+          : date_of_birth
+        : current.date_of_birth;
+    const nextGender =
+      gender !== undefined
+        ? gender === "" || gender === null
+          ? null
+          : String(gender).trim().toLowerCase()
+        : current.gender;
+    const nextBloodType =
+      blood_type !== undefined
+        ? blood_type === "" || blood_type === null
+          ? null
+          : String(blood_type).trim().toUpperCase()
+        : current.blood_type;
+
+    if (!nextName || nextName.length < 2) {
+      await client.query("ROLLBACK");
+      return res
+        .status(400)
+        .json({ message: "Name must be at least 2 characters" });
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(nextEmail)) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ message: "Invalid email format" });
+    }
+
+    if (nextGender && !["male", "female", "other"].includes(nextGender)) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({
+        message: "Gender must be male, female, or other",
+      });
+    }
+
+    if (
+      nextBloodType &&
+      !["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"].includes(
+        nextBloodType,
+      )
+    ) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({
+        message: "Invalid blood type",
+      });
+    }
+
+    if (nextEmail !== current.email) {
+      const emailCheck = await client.query(
+        "SELECT id FROM users WHERE email = $1 AND id <> $2",
+        [nextEmail, userId],
       );
 
-      if (currentProfile.rowCount === 0) {
+      if (emailCheck.rowCount > 0) {
         await client.query("ROLLBACK");
-        return res.status(404).json({ message: "Patient profile not found" });
+        return res.status(409).json({ message: "Email already in use" });
       }
+    }
 
-      const current = currentProfile.rows[0];
-
-      const nextName =
-        name !== undefined ? String(name).trim() : current.name;
-      const nextEmail =
-        email !== undefined ? String(email).trim().toLowerCase() : current.email;
-      const nextDob =
-        date_of_birth !== undefined
-          ? date_of_birth === "" || date_of_birth === null
-            ? null
-            : date_of_birth
-          : current.date_of_birth;
-      const nextGender =
-        gender !== undefined
-          ? gender === "" || gender === null
-            ? null
-            : String(gender).trim().toLowerCase()
-          : current.gender;
-      const nextBloodType =
-        blood_type !== undefined
-          ? blood_type === "" || blood_type === null
-            ? null
-            : String(blood_type).trim().toUpperCase()
-          : current.blood_type;
-
-      if (!nextName || nextName.length < 2) {
-        await client.query("ROLLBACK");
-        return res.status(400).json({ message: "Name must be at least 2 characters" });
-      }
-
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(nextEmail)) {
-        await client.query("ROLLBACK");
-        return res.status(400).json({ message: "Invalid email format" });
-      }
-
-      if (nextGender && !["male", "female", "other"].includes(nextGender)) {
-        await client.query("ROLLBACK");
-        return res.status(400).json({
-          message: "Gender must be male, female, or other",
-        });
-      }
-
-      if (
-        nextBloodType &&
-        !["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"].includes(nextBloodType)
-      ) {
-        await client.query("ROLLBACK");
-        return res.status(400).json({
-          message: "Invalid blood type",
-        });
-      }
-
-      if (nextEmail !== current.email) {
-        const emailCheck = await client.query(
-          "SELECT id FROM users WHERE email = $1 AND id <> $2",
-          [nextEmail, userId]
-        );
-
-        if (emailCheck.rowCount > 0) {
-          await client.query("ROLLBACK");
-          return res.status(409).json({ message: "Email already in use" });
-        }
-      }
-
-      await client.query(
-        `
+    await client.query(
+      `
         UPDATE users
         SET name = $1, email = $2
         WHERE id = $3
         `,
-        [nextName, nextEmail, userId]
-      );
+      [nextName, nextEmail, userId],
+    );
 
-      await client.query(
-        `
+    await client.query(
+      `
         UPDATE patients
         SET date_of_birth = $1, gender = $2, blood_type = $3
         WHERE user_id = $4
         `,
-        [nextDob, nextGender, nextBloodType, userId]
-      );
+      [nextDob, nextGender, nextBloodType, userId],
+    );
 
-      const updated = await client.query(
-        `
+    const updated = await client.query(
+      `
         SELECT 
           p.id,
           u.id as user_id,
@@ -535,30 +532,29 @@ router.patch(
         LEFT JOIN wards w ON p.ward_id = w.id
         WHERE p.user_id = $1
         `,
-        [userId]
-      );
+      [userId],
+    );
 
-      await client.query("COMMIT");
+    await client.query("COMMIT");
 
-      await auditLog({
-        req,
-        action: "UPDATE_MY_PROFILE",
-        patientId: userId,
-      });
+    await auditLog({
+      req,
+      action: "UPDATE_MY_PROFILE",
+      patientId: userId,
+    });
 
-      return res.json({
-        message: "Profile updated successfully",
-        patient: updated.rows[0],
-      });
-    } catch (err) {
-      await client.query("ROLLBACK");
-      console.error("UPDATE MY PROFILE ERROR:", err);
-      return res.status(500).json({ message: "Server error" });
-    } finally {
-      client.release();
-    }
+    return res.json({
+      message: "Profile updated successfully",
+      patient: updated.rows[0],
+    });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("UPDATE MY PROFILE ERROR:", err);
+    return res.status(500).json({ message: "Server error" });
+  } finally {
+    client.release();
   }
-);
+});
 
 /**
  * GET my records
@@ -595,12 +591,12 @@ router.get(
         // Ensure patient profile exists
         await pool.query(
           `INSERT INTO patients (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING`,
-          [userId]
+          [userId],
         );
 
         const patientResult = await pool.query(
           `SELECT id FROM patients WHERE user_id = $1`,
-          [userId]
+          [userId],
         );
 
         query += ` AND pr.patient_id = $${++paramCount} AND pr.record_type = 'patient_note'`;
@@ -666,7 +662,7 @@ router.get(
       console.error("GET MY RECORDS ERROR:", err);
       res.status(500).json({ message: "Server error" });
     }
-  }
+  },
 );
 
 /**
@@ -689,20 +685,19 @@ router.patch(
         });
       }
 
-      const check = await pool.query(
-        `SELECT id FROM patients WHERE id = $1`,
-        [patientId]
-      );
+      const check = await pool.query(`SELECT id FROM patients WHERE id = $1`, [
+        patientId,
+      ]);
 
       if (check.rowCount === 0) {
         return res.status(404).json({ message: "Patient not found" });
       }
 
       if (ward_id !== undefined) {
-        await pool.query(
-          `UPDATE patients SET ward_id = $1 WHERE id = $2`,
-          [ward_id, patientId]
-        );
+        await pool.query(`UPDATE patients SET ward_id = $1 WHERE id = $2`, [
+          ward_id,
+          patientId,
+        ]);
       }
 
       const result = await pool.query(
@@ -719,7 +714,7 @@ router.patch(
         LEFT JOIN wards w ON p.ward_id = w.id
         WHERE p.id = $1
         `,
-        [patientId]
+        [patientId],
       );
 
       res.json({
@@ -730,7 +725,7 @@ router.patch(
       console.error("UPDATE PATIENT ERROR:", err);
       res.status(500).json({ message: "Server error" });
     }
-  }
+  },
 );
 
 router.get(
@@ -746,7 +741,7 @@ router.get(
 
       const patientCheck = await pool.query(
         "SELECT user_id FROM patients WHERE id = $1",
-        [patientId]
+        [patientId],
       );
 
       if (patientCheck.rowCount === 0) {
@@ -791,7 +786,7 @@ router.get(
       console.error("GET PATIENT RECORDS ERROR:", err);
       res.status(500).json({ message: "Server error" });
     }
-  }
+  },
 );
 
 /**
@@ -823,7 +818,7 @@ router.patch(
 
       const originalRecord = await pool.query(
         "SELECT id, patient_id, record_type, content FROM patient_records WHERE id = $1",
-        [recordId]
+        [recordId],
       );
 
       if (originalRecord.rowCount === 0) {
@@ -840,7 +835,7 @@ router.patch(
         VALUES ($1, $2, $3, $4, $5)
         RETURNING *
         `,
-        [original.patient_id, createdBy, record_type, content, original.id]
+        [original.patient_id, createdBy, record_type, content, original.id],
       );
 
       await auditLog({
@@ -858,7 +853,7 @@ router.patch(
       console.error("CORRECT RECORD ERROR:", err);
       res.status(500).json({ message: "Server error: " + err.message });
     }
-  }
+  },
 );
 
 /**
@@ -884,7 +879,7 @@ router.delete(
 
       const check = await pool.query(
         "SELECT id, patient_id FROM patient_records WHERE id = $1",
-        [recordId]
+        [recordId],
       );
 
       if (check.rowCount === 0) {
@@ -904,7 +899,7 @@ router.delete(
           "void",
           `Original record #${recordId} has been voided`,
           recordId,
-        ]
+        ],
       );
 
       await auditLog({
@@ -914,13 +909,14 @@ router.delete(
       });
 
       res.json({
-        message: "Record voided successfully (original record preserved for audit)",
+        message:
+          "Record voided successfully (original record preserved for audit)",
       });
     } catch (err) {
       console.error("VOID RECORD ERROR:", err);
       res.status(500).json({ message: "Server error: " + err.message });
     }
-  }
+  },
 );
 
 module.exports = router;

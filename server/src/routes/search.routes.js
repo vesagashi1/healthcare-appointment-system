@@ -71,7 +71,10 @@ const ensureSearchableEntity = (entity) => {
   }
 };
 
-const buildPatientsSearch = async (req, { sortBy, sortOrder, limit, offset }) => {
+const buildPatientsSearch = async (
+  req,
+  { sortBy, sortOrder, limit, offset },
+) => {
   const values = [];
   let where = "WHERE 1=1";
   const { q, ward_id } = req.query;
@@ -152,7 +155,10 @@ const buildPatientsSearch = async (req, { sortBy, sortOrder, limit, offset }) =>
   };
 };
 
-const buildDoctorsSearch = async (req, { sortBy, sortOrder, limit, offset }) => {
+const buildDoctorsSearch = async (
+  req,
+  { sortBy, sortOrder, limit, offset },
+) => {
   const values = [];
   let where = "WHERE 1=1";
   const { q, specialization } = req.query;
@@ -192,7 +198,10 @@ const buildDoctorsSearch = async (req, { sortBy, sortOrder, limit, offset }) => 
   };
 };
 
-const buildAppointmentsSearch = async (req, { sortBy, sortOrder, limit, offset }) => {
+const buildAppointmentsSearch = async (
+  req,
+  { sortBy, sortOrder, limit, offset },
+) => {
   const values = [];
   let where = "WHERE 1=1";
   const { q, status, ward_id, start_date, end_date } = req.query;
@@ -265,7 +274,10 @@ const buildAppointmentsSearch = async (req, { sortBy, sortOrder, limit, offset }
   };
 };
 
-const buildRecordsSearch = async (req, { sortBy, sortOrder, limit, offset }) => {
+const buildRecordsSearch = async (
+  req,
+  { sortBy, sortOrder, limit, offset },
+) => {
   const values = [];
   let where = "WHERE 1=1";
   const { q, record_type, ward_id, start_date, end_date } = req.query;

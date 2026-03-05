@@ -7,7 +7,9 @@ const XLSX = require("xlsx");
 const router = express.Router();
 
 const normalizeExportFormat = (value) => {
-  const format = String(value || "json").toLowerCase().trim();
+  const format = String(value || "json")
+    .toLowerCase()
+    .trim();
   if (format === "xlsx" || format === "xls" || format === "excel") {
     return "excel";
   }
@@ -17,7 +19,8 @@ const normalizeExportFormat = (value) => {
   return "json";
 };
 
-const isReportRoleAllowed = (role) => ["admin", "doctor", "nurse"].includes(role);
+const isReportRoleAllowed = (role) =>
+  ["admin", "doctor", "nurse"].includes(role);
 
 const buildScopeClause = (role, userId, wardField, values) => {
   if (role === "doctor") {
@@ -88,7 +91,12 @@ const getReportData = async (req) => {
     wardField: "p.ward_id",
     statusField: "a.status",
   });
-  appointmentWhere += buildScopeClause(role, userId, "p.ward_id", appointmentValues);
+  appointmentWhere += buildScopeClause(
+    role,
+    userId,
+    "p.ward_id",
+    appointmentValues,
+  );
 
   const appointmentStatusResult = await pool.query(
     `
@@ -99,7 +107,7 @@ const getReportData = async (req) => {
     GROUP BY a.status
     ORDER BY a.status ASC
     `,
-    appointmentValues
+    appointmentValues,
   );
 
   const overviewResult = await pool.query(
@@ -114,7 +122,7 @@ const getReportData = async (req) => {
     JOIN patients p ON p.id = a.patient_id
     ${appointmentWhere}
     `,
-    appointmentValues
+    appointmentValues,
   );
 
   const wardValues = [];
@@ -137,7 +145,7 @@ const getReportData = async (req) => {
     GROUP BY w.id, w.name
     ORDER BY w.name ASC
     `,
-    wardValues
+    wardValues,
   );
 
   const recordValues = [];
@@ -156,7 +164,7 @@ const getReportData = async (req) => {
     GROUP BY pr.record_type
     ORDER BY count DESC
     `,
-    recordValues
+    recordValues,
   );
 
   const userRoleValues = [];
@@ -178,7 +186,7 @@ const getReportData = async (req) => {
     GROUP BY r.name
     ORDER BY r.name ASC
     `,
-    userRoleValues
+    userRoleValues,
   );
 
   const overview = overviewResult.rows[0] || {
@@ -209,11 +217,31 @@ const getReportData = async (req) => {
 const sendExport = (res, format, report) => {
   if (format === "csv") {
     const rows = [
-      { section: "overview", metric: "total_appointments", value: report.overview.total },
-      { section: "overview", metric: "requested", value: report.overview.requested },
-      { section: "overview", metric: "scheduled", value: report.overview.scheduled },
-      { section: "overview", metric: "cancelled", value: report.overview.cancelled },
-      { section: "overview", metric: "completed", value: report.overview.completed },
+      {
+        section: "overview",
+        metric: "total_appointments",
+        value: report.overview.total,
+      },
+      {
+        section: "overview",
+        metric: "requested",
+        value: report.overview.requested,
+      },
+      {
+        section: "overview",
+        metric: "scheduled",
+        value: report.overview.scheduled,
+      },
+      {
+        section: "overview",
+        metric: "cancelled",
+        value: report.overview.cancelled,
+      },
+      {
+        section: "overview",
+        metric: "completed",
+        value: report.overview.completed,
+      },
       ...report.appointment_status.map((row) => ({
         section: "appointment_status",
         metric: row.status,
@@ -254,13 +282,35 @@ const sendExport = (res, format, report) => {
       { metric: "completed", value: report.overview.completed },
     ]);
     XLSX.utils.book_append_sheet(workbook, overviewSheet, "Overview");
-    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(report.appointment_status), "AppointmentStatus");
-    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(report.wards), "Wards");
-    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(report.record_types), "RecordTypes");
-    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(report.user_roles), "UserRoles");
+    XLSX.utils.book_append_sheet(
+      workbook,
+      XLSX.utils.json_to_sheet(report.appointment_status),
+      "AppointmentStatus",
+    );
+    XLSX.utils.book_append_sheet(
+      workbook,
+      XLSX.utils.json_to_sheet(report.wards),
+      "Wards",
+    );
+    XLSX.utils.book_append_sheet(
+      workbook,
+      XLSX.utils.json_to_sheet(report.record_types),
+      "RecordTypes",
+    );
+    XLSX.utils.book_append_sheet(
+      workbook,
+      XLSX.utils.json_to_sheet(report.user_roles),
+      "UserRoles",
+    );
 
-    const excelBuffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
-    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    const excelBuffer = XLSX.write(workbook, {
+      type: "buffer",
+      bookType: "xlsx",
+    });
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    );
     res.setHeader("Content-Disposition", "attachment; filename=reports.xlsx");
     return res.send(excelBuffer);
   }
