@@ -39,7 +39,9 @@ export default function DatePicker({
         minDate={minDate}
         className="input-field w-full pl-10 cursor-pointer"
         calendarClassName="dark-calendar"
+        popperClassName="datepicker-popper"
         popperPlacement="bottom-start"
+        portalId="root"
         showPopperArrow={false}
         autoComplete="off"
       />

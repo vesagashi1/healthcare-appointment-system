@@ -45,6 +45,9 @@ SET search_path TO public;
 -- 10. Fix FK references (doctor_wards → doctors, patient_id → patients)
 \i db/migrations/012_fix_fk_references.sql
 
+-- 11. Add performance indexes and tighten NOT NULL constraints
+\i db/migrations/013_add_indexes_and_not_null_constraints.sql
+
 -- ============================================
 -- Setup Complete (without test data)
 -- ============================================

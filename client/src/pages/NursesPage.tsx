@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import api from "../services/api";
 import { useAuth } from "../contexts/AuthContext";
 import {
@@ -11,6 +11,7 @@ import {
   Ban,
   RotateCcw,
   Trash2,
+  Search,
 } from "lucide-react";
 
 /* ───── types ───── */
@@ -91,12 +92,16 @@ function Modal({
 /* ───── page ───── */
 
 const NursesPage = () => {
+  const PAGE_SIZE = 9;
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
 
   /* ── list ── */
   const [nurses, setNurses] = useState<NurseListItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchField, setSearchField] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
 
   /* ── detail ── */
   const [selectedNurse, setSelectedNurse] = useState<NurseDetail | null>(null);
@@ -290,6 +295,36 @@ const NursesPage = () => {
     }
   };
 
+  const filteredNurses = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return nurses;
+
+    return nurses.filter((nurse) => {
+      const targets =
+        searchField === "name"
+          ? [nurse.name]
+          : searchField === "email"
+            ? [nurse.email]
+            : [nurse.name, nurse.email];
+
+      return targets.some((value) => value.toLowerCase().includes(q));
+    });
+  }, [nurses, searchField, searchQuery]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredNurses.length / PAGE_SIZE));
+  const paginatedNurses = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filteredNurses.slice(start, start + PAGE_SIZE);
+  }, [currentPage, filteredNurses]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchField, searchQuery]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
+
   /* ── loading ── */
 
   if (loading) {
@@ -320,15 +355,39 @@ const NursesPage = () => {
         )}
       </div>
 
+      <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="relative md:col-span-2">
+          <Search className="h-4 w-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            className="input-field w-full pl-9"
+            placeholder="Search nurses..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+        <select
+          className="input-field w-full"
+          value={searchField}
+          onChange={(e) => setSearchField(e.target.value)}
+        >
+          <option value="all">Search: All fields</option>
+          <option value="name">Search: Name</option>
+          <option value="email">Search: Email</option>
+        </select>
+      </div>
+
       {/* Cards grid */}
-      {nurses.length === 0 ? (
+      {filteredNurses.length === 0 ? (
         <div className="card text-center py-12">
           <HeartPulse className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <p className="text-slate-300">No nurses found</p>
+          <p className="text-slate-300">
+            {nurses.length === 0 ? "No nurses found" : "No nurses match your search"}
+          </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {nurses.map((nurse) => (
+          {paginatedNurses.map((nurse) => (
             <div
               key={nurse.user_id}
               className={`card hover:shadow-lg transition-shadow ${nurse.active === false ? "opacity-60" : ""}`}
@@ -410,6 +469,31 @@ const NursesPage = () => {
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {filteredNurses.length > 0 && (
+        <div className="mt-6 flex items-center justify-between">
+          <p className="text-sm text-slate-400">
+            Page {currentPage} of {totalPages} ({filteredNurses.length} result
+            {filteredNurses.length !== 1 ? "s" : ""})
+          </p>
+          <div className="flex gap-2">
+            <button
+              className="btn-secondary"
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+            >
+              Previous
+            </button>
+            <button
+              className="btn-secondary"
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+            >
+              Next
+            </button>
+          </div>
         </div>
       )}
 

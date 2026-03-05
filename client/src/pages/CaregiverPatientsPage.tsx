@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Navigate } from "react-router-dom";
-import { Users, User } from "lucide-react";
+import { Users, User, Search } from "lucide-react";
 import api from "../services/api";
 import { useAuth } from "../contexts/AuthContext";
 
@@ -16,9 +16,13 @@ type CaregiverPatient = {
 };
 
 export default function CaregiverPatientsPage() {
+  const PAGE_SIZE = 9;
   const { user } = useAuth();
   const [patients, setPatients] = useState<CaregiverPatient[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchField, setSearchField] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
 
   const canViewMyPatients =
     user?.role === "caregiver" &&
@@ -43,6 +47,40 @@ export default function CaregiverPatientsPage() {
     }
   };
 
+  const filteredPatients = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return patients;
+
+    return patients.filter((patient) => {
+      const targets =
+        searchField === "name"
+          ? [patient.name]
+          : searchField === "email"
+            ? [patient.email]
+            : searchField === "relationship"
+              ? [patient.relationship]
+              : searchField === "ward"
+                ? [patient.ward_name || ""]
+                : [patient.name, patient.email, patient.relationship, patient.ward_name || ""];
+
+      return targets.some((value) => value.toLowerCase().includes(q));
+    });
+  }, [patients, searchField, searchQuery]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredPatients.length / PAGE_SIZE));
+  const paginatedPatients = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filteredPatients.slice(start, start + PAGE_SIZE);
+  }, [currentPage, filteredPatients]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchField, searchQuery]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
+
   if (!user) return <Navigate to="/login" replace />;
   if (!canViewMyPatients) return <Navigate to="/dashboard" replace />;
 
@@ -61,14 +99,36 @@ export default function CaregiverPatientsPage() {
         <h1 className="text-3xl font-bold text-slate-100">My Patients</h1>
       </div>
 
-      {patients.length === 0 ? (
+      <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="relative md:col-span-2">
+          <Search className="h-4 w-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            className="input-field w-full pl-9"
+            placeholder="Search linked patients..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+        <select className="input-field w-full" value={searchField} onChange={(e) => setSearchField(e.target.value)}>
+          <option value="all">Search: All fields</option>
+          <option value="name">Search: Name</option>
+          <option value="email">Search: Email</option>
+          <option value="relationship">Search: Relationship</option>
+          <option value="ward">Search: Ward</option>
+        </select>
+      </div>
+
+      {filteredPatients.length === 0 ? (
         <div className="card text-center py-12">
           <User className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <p className="text-slate-300">No linked patients found</p>
+          <p className="text-slate-300">
+            {patients.length === 0 ? "No linked patients found" : "No patients match your search"}
+          </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {patients.map((patient) => (
+          {paginatedPatients.map((patient) => (
             <div
               key={patient.id}
               className="card hover:shadow-lg transition-shadow"
@@ -101,6 +161,31 @@ export default function CaregiverPatientsPage() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {filteredPatients.length > 0 && (
+        <div className="mt-6 flex items-center justify-between">
+          <p className="text-sm text-slate-400">
+            Page {currentPage} of {totalPages} ({filteredPatients.length} result
+            {filteredPatients.length !== 1 ? "s" : ""})
+          </p>
+          <div className="flex gap-2">
+            <button
+              className="btn-secondary"
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+            >
+              Previous
+            </button>
+            <button
+              className="btn-secondary"
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+            >
+              Next
+            </button>
+          </div>
         </div>
       )}
     </div>

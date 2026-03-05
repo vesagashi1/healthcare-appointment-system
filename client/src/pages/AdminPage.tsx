@@ -44,8 +44,13 @@ const AdminPage = () => {
     user?.role === 'admin' ||
     (Array.isArray(user?.permissions) &&
       (user.permissions.includes('VIEW_USERS') || user.permissions.includes('MANAGE_USERS')));
+  const canViewAuditLogs =
+    user?.role === 'admin' ||
+    (Array.isArray(user?.permissions) &&
+      user.permissions.includes('VIEW_AUDIT_LOGS'));
   const [users, setUsers] = useState<User[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [auditLogsTotal, setAuditLogsTotal] = useState(0);
   const [activeTab, setActiveTab] = useState<'users' | 'logs'>('users');
   const [loading, setLoading] = useState(true);
   const [submittingUser, setSubmittingUser] = useState(false);
@@ -68,10 +73,13 @@ const AdminPage = () => {
   useEffect(() => {
     if (activeTab === 'users') {
       fetchUsers();
-    } else {
+      if (canViewAuditLogs) {
+        fetchAuditLogsCount();
+      }
+    } else if (canViewAuditLogs) {
       fetchAuditLogs();
     }
-  }, [activeTab, filters]);
+  }, [activeTab, filters, canViewAuditLogs]);
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -98,11 +106,21 @@ const AdminPage = () => {
 
       const response = await api.get(`/admin/audit-logs?${params.toString()}`);
       setAuditLogs(response.data.logs || []);
+      setAuditLogsTotal(response.data.total_count ?? response.data.count ?? 0);
     } catch (error) {
       console.error('Error fetching audit logs:', error);
       toast.error('Failed to fetch audit logs');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchAuditLogsCount = async () => {
+    try {
+      const response = await api.get('/admin/audit-logs?limit=1');
+      setAuditLogsTotal(response.data.total_count ?? response.data.count ?? 0);
+    } catch (error) {
+      console.error('Error fetching audit logs count:', error);
     }
   };
 
@@ -273,9 +291,10 @@ const AdminPage = () => {
         <button
           onClick={() => setActiveTab('logs')}
           className={`${styles.tab} ${activeTab === 'logs' ? styles.tabActive : ''}`}
+          disabled={!canViewAuditLogs}
         >
           <FileText className={styles.tabIcon} />
-          Audit Logs ({auditLogs.length})
+          Audit Logs ({auditLogsTotal})
         </button>
       </div>
 
