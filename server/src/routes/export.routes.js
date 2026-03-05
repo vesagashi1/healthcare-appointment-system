@@ -207,7 +207,8 @@ router.get(
           u_creator.name as created_by_name,
           pr.created_at
         FROM patient_records pr
-        JOIN users u ON pr.patient_id = u.id
+        JOIN patients pat ON pr.patient_id = pat.id
+        JOIN users u ON pat.user_id = u.id
         JOIN users u_creator ON pr.created_by = u_creator.id
         ORDER BY pr.created_at DESC
       `);

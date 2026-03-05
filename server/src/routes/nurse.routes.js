@@ -124,7 +124,7 @@ router.get(
         FROM patients p
         JOIN users u ON p.user_id = u.id
         LEFT JOIN wards w ON p.ward_id = w.id
-        JOIN patient_assignments pa ON p.user_id = pa.patient_id
+        JOIN patient_assignments pa ON p.id = pa.patient_id
         WHERE pa.staff_id = $1 AND pa.role = 'nurse'
         ORDER BY u.name ASC
         `,
@@ -456,7 +456,7 @@ router.get(
         FROM patients p
         JOIN users u ON p.user_id = u.id
         LEFT JOIN wards w ON p.ward_id = w.id
-        JOIN patient_assignments pa ON p.user_id = pa.patient_id
+        JOIN patient_assignments pa ON p.id = pa.patient_id
         WHERE pa.staff_id = $1 AND pa.role = 'nurse'
         ORDER BY u.name ASC
         `,

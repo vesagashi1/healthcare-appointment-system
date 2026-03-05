@@ -42,6 +42,9 @@ SET search_path TO public;
 -- 9. Create nurses table
 \i db/migrations/011_create_nurses_table.sql
 
+-- 10. Fix FK references (doctor_wards → doctors, patient_id → patients)
+\i db/migrations/012_fix_fk_references.sql
+
 -- ============================================
 -- Setup Complete (without test data)
 -- ============================================

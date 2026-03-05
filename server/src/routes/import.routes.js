@@ -414,10 +414,9 @@ router.post(
         }
 
         try {
-          // patient_id in patient_records references users.id, not patients.id
-          // So we need to get the user_id from the patient
+          // Verify patient exists (patient_id references patients.id)
           const patientCheck = await pool.query(
-            "SELECT user_id FROM patients WHERE id = $1",
+            "SELECT id FROM patients WHERE id = $1",
             [row.patient_id]
           );
 
@@ -430,12 +429,11 @@ router.post(
             continue;
           }
 
-          const patientUserId = patientCheck.rows[0].user_id;
           const createdBy = req.user.id;
 
           const result = await pool.query(
             "INSERT INTO patient_records (patient_id, created_by, record_type, content) VALUES ($1, $2, $3, $4) RETURNING id",
-            [patientUserId, createdBy, row.record_type, row.content]
+            [row.patient_id, createdBy, row.record_type, row.content]
           );
 
           results.success.push({

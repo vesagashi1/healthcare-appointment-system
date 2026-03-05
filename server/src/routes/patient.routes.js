@@ -31,7 +31,7 @@ router.post(
       }
 
       const patientResult = await pool.query(
-        "SELECT user_id FROM patients WHERE user_id = $1",
+        "SELECT id FROM patients WHERE user_id = $1",
         [userId]
       );
 
@@ -39,9 +39,9 @@ router.post(
         return res.status(404).json({ message: "Patient profile not found" });
       }
 
-      const patientUserId = role === "patient" ? userId : null;
+      const patientTableId = role === "patient" ? patientResult.rows[0].id : null;
       
-      if (!patientUserId) {
+      if (!patientTableId) {
         return res.status(400).json({
           message: "Please specify patient_id when creating records as admin/doctor",
         });
@@ -54,13 +54,13 @@ router.post(
         VALUES ($1, $2, $3, $4)
         RETURNING *
         `,
-        [patientUserId, userId, record_type, content]
+        [patientTableId, userId, record_type, content]
       );
 
       await auditLog({
         req,
         action: "CREATE_PATIENT_RECORD",
-        patientId: patientUserId,
+        patientId: patientTableId,
       });
 
       res.status(201).json({
@@ -92,15 +92,13 @@ router.post(
     }
 
     const patientCheck = await pool.query(
-      "SELECT user_id FROM patients WHERE id = $1",
+      "SELECT id FROM patients WHERE id = $1",
       [patientId]
     );
 
     if (patientCheck.rowCount === 0) {
       return res.status(404).json({ message: "Patient not found" });
     }
-
-    const patientUserId = patientCheck.rows[0].user_id;
 
     const result = await pool.query(
       `
@@ -109,13 +107,13 @@ router.post(
       VALUES ($1, $2, $3, $4)
       RETURNING *
       `,
-      [patientUserId, createdBy, record_type, content]
+      [patientId, createdBy, record_type, content]
     );
 
     await auditLog({
       req,
       action: "CREATE_PATIENT_RECORD",
-      patientId: patientUserId,
+      patientId: patientId,
     });
 
     res.status(201).json({
@@ -235,8 +233,6 @@ router.get(
       }
 
       const patient = patientResult.rows[0];
-      const patientUserId = patient.user_id;
-
       const staffResult = await pool.query(
         `
         SELECT 
@@ -249,7 +245,7 @@ router.get(
         JOIN users u ON pa.staff_id = u.id
         WHERE pa.patient_id = $1
         `,
-        [patientUserId]
+        [patientId]
       );
 
       const caregiversResult = await pool.query(
@@ -265,7 +261,7 @@ router.get(
         JOIN users u ON pc.caregiver_id = u.id
         WHERE pc.patient_id = $1
         `,
-        [patientUserId]
+        [patientId]
       );
 
       res.json({
@@ -586,7 +582,8 @@ router.get(
           original.id as original_record_id,
           original.content as original_content
         FROM patient_records pr
-        JOIN users u ON pr.patient_id = u.id
+        JOIN patients pat ON pr.patient_id = pat.id
+        JOIN users u ON pat.user_id = u.id
         LEFT JOIN users creator ON pr.created_by = creator.id
         LEFT JOIN patient_records original ON pr.corrected_record_id = original.id
         WHERE 1=1
@@ -595,28 +592,19 @@ router.get(
       let paramCount = 0;
 
       if (role === "patient") {
-        const patientResult = await pool.query(
-          `
-          SELECT id
-          FROM patients
-          WHERE user_id = $1
-          `,
+        // Ensure patient profile exists
+        await pool.query(
+          `INSERT INTO patients (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING`,
           [userId]
         );
 
-        if (patientResult.rowCount === 0) {
-          await pool.query(
-            `
-            INSERT INTO patients (user_id)
-            VALUES ($1)
-            ON CONFLICT (user_id) DO NOTHING
-            `,
-            [userId]
-          );
-        }
+        const patientResult = await pool.query(
+          `SELECT id FROM patients WHERE user_id = $1`,
+          [userId]
+        );
 
         query += ` AND pr.patient_id = $${++paramCount} AND pr.record_type = 'patient_note'`;
-        values.push(userId);
+        values.push(patientResult.rows[0].id);
       } else if (role === "nurse") {
         query += `
           AND (
@@ -626,7 +614,7 @@ router.get(
               WHERE pa.staff_id = $${++paramCount} AND pa.role = 'nurse'
             )
             OR pr.patient_id IN (
-              SELECT p.user_id
+              SELECT p.id
               FROM patients p
               JOIN nurse_wards nw ON nw.ward_id = p.ward_id
               WHERE nw.nurse_id = $${++paramCount}
@@ -649,7 +637,7 @@ router.get(
         query += `
           AND (
             pr.patient_id IN (
-              SELECT p.user_id
+              SELECT p.id
               FROM patients p
               JOIN doctor_wards dw ON dw.ward_id = p.ward_id
               JOIN doctors d ON d.id = dw.doctor_id
@@ -765,8 +753,6 @@ router.get(
         return res.status(404).json({ message: "Patient not found" });
       }
 
-      const patientUserId = patientCheck.rows[0].user_id;
-
       let query = `
         SELECT 
           pr.*,
@@ -776,11 +762,12 @@ router.get(
           creator.email as creator_email,
           CASE WHEN pr.record_type = 'void' THEN true ELSE false END as is_void
         FROM patient_records pr
-        JOIN users u ON pr.patient_id = u.id
+        JOIN patients pat ON pr.patient_id = pat.id
+        JOIN users u ON pat.user_id = u.id
         LEFT JOIN users creator ON pr.created_by = creator.id
         WHERE pr.patient_id = $1
       `;
-      const values = [patientUserId];
+      const values = [patientId];
 
       if (role === "patient") {
         query += ` AND pr.record_type = 'patient_note'`;

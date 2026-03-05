@@ -82,7 +82,7 @@ const buildPatientsSearch = async (req, { sortBy, sortOrder, limit, offset }) =>
   } else if (role === "caregiver") {
     where += ` AND EXISTS (
       SELECT 1 FROM patient_caregivers pc
-      WHERE pc.patient_id = p.user_id AND pc.caregiver_id = $${values.push(req.user.id)}
+      WHERE pc.patient_id = p.id AND pc.caregiver_id = $${values.push(req.user.id)}
     )`;
   } else if (role === "doctor") {
     where += ` AND EXISTS (
@@ -102,7 +102,7 @@ const buildPatientsSearch = async (req, { sortBy, sortOrder, limit, offset }) =>
       OR EXISTS (
         SELECT 1 FROM patient_assignments pa
         WHERE pa.staff_id = $${values.push(req.user.id)}
-          AND pa.patient_id = p.user_id
+          AND pa.patient_id = p.id
           AND pa.role = 'nurse'
       )
     )`;
@@ -205,7 +205,7 @@ const buildAppointmentsSearch = async (req, { sortBy, sortOrder, limit, offset }
   } else if (role === "caregiver") {
     where += ` AND EXISTS (
       SELECT 1 FROM patient_caregivers pc
-      WHERE pc.patient_id = p.user_id AND pc.caregiver_id = $${values.push(req.user.id)}
+      WHERE pc.patient_id = p.id AND pc.caregiver_id = $${values.push(req.user.id)}
     )`;
   }
 
@@ -272,7 +272,7 @@ const buildRecordsSearch = async (req, { sortBy, sortOrder, limit, offset }) => 
   const role = req.user.role;
 
   if (role === "patient") {
-    where += ` AND pr.patient_id = $${values.push(req.user.id)} AND pr.record_type = 'patient_note'`;
+    where += ` AND p.user_id = $${values.push(req.user.id)} AND pr.record_type = 'patient_note'`;
   } else if (role === "doctor") {
     where += ` AND EXISTS (
       SELECT 1
@@ -286,7 +286,7 @@ const buildRecordsSearch = async (req, { sortBy, sortOrder, limit, offset }) => 
       EXISTS (
         SELECT 1 FROM patient_assignments pa
         WHERE pa.staff_id = $${values.push(req.user.id)}
-          AND pa.patient_id = p.user_id
+          AND pa.patient_id = p.id
           AND pa.role = 'nurse'
       )
       OR EXISTS (
@@ -298,7 +298,7 @@ const buildRecordsSearch = async (req, { sortBy, sortOrder, limit, offset }) => 
   } else if (role === "caregiver") {
     where += ` AND EXISTS (
       SELECT 1 FROM patient_caregivers pc
-      WHERE pc.patient_id = p.user_id AND pc.caregiver_id = $${values.push(req.user.id)}
+      WHERE pc.patient_id = p.id AND pc.caregiver_id = $${values.push(req.user.id)}
     ) AND pr.record_type IN ('nursing_note', 'patient_note')`;
   }
 
@@ -342,9 +342,9 @@ const buildRecordsSearch = async (req, { sortBy, sortOrder, limit, offset }) => 
       w.name as ward_name,
       COUNT(*) OVER()::int as total_count
     FROM patient_records pr
-    JOIN users u_patient ON pr.patient_id = u_patient.id
+    JOIN patients p ON pr.patient_id = p.id
+    JOIN users u_patient ON p.user_id = u_patient.id
     LEFT JOIN users u_creator ON pr.created_by = u_creator.id
-    LEFT JOIN patients p ON p.user_id = pr.patient_id
     LEFT JOIN wards w ON p.ward_id = w.id
     ${where}
     ORDER BY ${sortBy} ${sortOrder}

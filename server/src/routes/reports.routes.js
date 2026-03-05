@@ -151,7 +151,7 @@ const getReportData = async (req) => {
     `
     SELECT pr.record_type, COUNT(*)::int as count
     FROM patient_records pr
-    LEFT JOIN patients p ON p.user_id = pr.patient_id
+    LEFT JOIN patients p ON p.id = pr.patient_id
     ${recordWhere}
     GROUP BY pr.record_type
     ORDER BY count DESC

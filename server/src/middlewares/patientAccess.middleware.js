@@ -48,7 +48,7 @@ const canAccessPatient = async (req, res, next) => {
           AND patient_id = $2
           AND role = 'nurse'
         `,
-        [userId, patientUserId]
+        [userId, patientId]
       );
 
       if (result.rowCount > 0) {
@@ -65,7 +65,7 @@ const canAccessPatient = async (req, res, next) => {
         WHERE caregiver_id = $1
           AND patient_id = $2
         `,
-        [userId, patientUserId]
+        [userId, patientId]
       );
 
       if (result.rowCount > 0) {

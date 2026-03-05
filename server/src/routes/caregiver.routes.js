@@ -97,7 +97,7 @@ router.get(
           pc.relationship,
           pc.created_at as linked_at
         FROM patient_caregivers pc
-        JOIN patients p ON pc.patient_id = p.user_id
+        JOIN patients p ON pc.patient_id = p.id
         JOIN users u ON p.user_id = u.id
         LEFT JOIN wards w ON p.ward_id = w.id
         WHERE pc.caregiver_id = $1
@@ -141,18 +141,16 @@ router.post(
       }
 
       const patientCheck = await pool.query(
-        `SELECT id, user_id FROM patients WHERE id = $1`,
+        `SELECT id FROM patients WHERE id = $1`,
         [patient_id],
       );
       if (patientCheck.rowCount === 0) {
         return res.status(404).json({ message: "Patient not found" });
       }
 
-      const patientUserId = patientCheck.rows[0].user_id;
-
       const existing = await pool.query(
         `SELECT id FROM patient_caregivers WHERE patient_id = $1 AND caregiver_id = $2`,
-        [patientUserId, caregiverId],
+        [patient_id, caregiverId],
       );
       if (existing.rowCount > 0) {
         return res
@@ -164,7 +162,7 @@ router.post(
         `INSERT INTO patient_caregivers (patient_id, caregiver_id, relationship)
          VALUES ($1, $2, $3)
          RETURNING *`,
-        [patientUserId, caregiverId, relationship],
+        [patient_id, caregiverId, relationship],
       );
 
       res.status(201).json({
@@ -195,18 +193,16 @@ router.delete(
       }
 
       const patientCheck = await pool.query(
-        `SELECT user_id FROM patients WHERE id = $1`,
+        `SELECT id FROM patients WHERE id = $1`,
         [patientId],
       );
       if (patientCheck.rowCount === 0) {
         return res.status(404).json({ message: "Patient not found" });
       }
 
-      const patientUserId = patientCheck.rows[0].user_id;
-
       const check = await pool.query(
         `SELECT id FROM patient_caregivers WHERE patient_id = $1 AND caregiver_id = $2`,
-        [patientUserId, caregiverId],
+        [patientId, caregiverId],
       );
       if (check.rowCount === 0) {
         return res.status(404).json({ message: "Caregiver link not found" });
@@ -214,7 +210,7 @@ router.delete(
 
       await pool.query(
         `DELETE FROM patient_caregivers WHERE patient_id = $1 AND caregiver_id = $2`,
-        [patientUserId, caregiverId],
+        [patientId, caregiverId],
       );
 
       res.json({ message: "Caregiver unlinked from patient successfully" });
@@ -271,7 +267,7 @@ router.get(
           pc.relationship,
           pc.created_at as linked_at
         FROM patient_caregivers pc
-        JOIN patients p ON pc.patient_id = p.user_id
+        JOIN patients p ON pc.patient_id = p.id
         JOIN users u ON p.user_id = u.id
         LEFT JOIN wards w ON p.ward_id = w.id
         WHERE pc.caregiver_id = $1
@@ -595,7 +591,7 @@ router.get(
           pc.relationship,
           pc.created_at as linked_at
         FROM patient_caregivers pc
-        JOIN patients p ON pc.patient_id = p.user_id
+        JOIN patients p ON pc.patient_id = p.id
         JOIN users u ON p.user_id = u.id
         LEFT JOIN wards w ON p.ward_id = w.id
         WHERE pc.caregiver_id = $1
@@ -660,9 +656,11 @@ router.post(
         return res.status(404).json({ message: "Patient not found" });
       }
 
+      const patientTableId = patientCheck.rows[0].id;
+
       const existing = await pool.query(
         `SELECT id FROM patient_caregivers WHERE patient_id = $1 AND caregiver_id = $2`,
-        [patient_user_id, caregiverId],
+        [patientTableId, caregiverId],
       );
       if (existing.rowCount > 0) {
         return res
@@ -672,7 +670,7 @@ router.post(
 
       await pool.query(
         `INSERT INTO patient_caregivers (patient_id, caregiver_id, relationship) VALUES ($1, $2, $3)`,
-        [patient_user_id, caregiverId, relationship || "caregiver"],
+        [patientTableId, caregiverId, relationship || "caregiver"],
       );
 
       try {
@@ -711,9 +709,19 @@ router.delete(
     }
 
     try {
+      const patientLookup = await pool.query(
+        `SELECT id FROM patients WHERE user_id = $1`,
+        [patientUserId],
+      );
+      if (patientLookup.rowCount === 0) {
+        return res.status(404).json({ message: "Patient not found" });
+      }
+
+      const patientTableId = patientLookup.rows[0].id;
+
       const check = await pool.query(
         `SELECT id FROM patient_caregivers WHERE patient_id = $1 AND caregiver_id = $2`,
-        [patientUserId, caregiverId],
+        [patientTableId, caregiverId],
       );
       if (check.rowCount === 0) {
         return res.status(404).json({ message: "Assignment not found" });
@@ -721,7 +729,7 @@ router.delete(
 
       await pool.query(
         `DELETE FROM patient_caregivers WHERE patient_id = $1 AND caregiver_id = $2`,
-        [patientUserId, caregiverId],
+        [patientTableId, caregiverId],
       );
 
       try {
