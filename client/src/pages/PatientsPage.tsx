@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import api from "../services/api";
 import { useAuth } from "../contexts/AuthContext";
+import DatePicker from "../components/DatePicker";
+import { format } from "date-fns";
 import {
   Users,
   X,
@@ -673,11 +675,10 @@ const PatientsPage = () => {
               <label className="block text-sm font-medium text-slate-300 mb-1">
                 Date of Birth
               </label>
-              <input
-                type="date"
-                className="input-field w-full"
-                value={formDob}
-                onChange={(e) => setFormDob(e.target.value)}
+              <DatePicker
+                selected={formDob ? new Date(formDob + 'T00:00:00') : null}
+                onChange={(date) => setFormDob(date ? format(date, 'yyyy-MM-dd') : '')}
+                placeholderText="Select date of birth"
               />
             </div>
             <div className="grid grid-cols-2 gap-4">

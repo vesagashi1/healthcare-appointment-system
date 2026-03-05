@@ -17,13 +17,13 @@ router.post(
   authMiddleware,
   hasPermission("CREATE_APPOINTMENT"),
   async (req, res) => {
-    const { doctor_id, appointment_date } = req.body;
-    const patientUserId = req.user.id;
+    const { doctor_id, appointment_date, patient_id: bodyPatientId } = req.body;
     const role = req.user.role;
+    let patientUserId = req.user.id;
 
-    if (role !== "patient") {
+    if (role !== "patient" && role !== "admin") {
       return res.status(403).json({
-        message: "Only patients can request appointments",
+        message: "Only patients or admins can create appointments",
       });
     }
 
@@ -47,31 +47,39 @@ router.post(
     }
 
     try {
-      let patientLookup = await pool.query(
-        `SELECT id FROM patients WHERE user_id = $1`,
-        [patientUserId],
-      );
-
-      if (patientLookup.rowCount === 0) {
-        await pool.query(
-          `
-          INSERT INTO patients (user_id)
-          VALUES ($1)
-          ON CONFLICT (user_id) DO NOTHING
-          `,
-          [patientUserId],
+      // Admin creating on behalf of a patient
+      let patientLookup;
+      if (role === "admin" && bodyPatientId) {
+        patientLookup = await pool.query(
+          `SELECT p.id, p.user_id FROM patients p WHERE p.id = $1`,
+          [bodyPatientId],
         );
-
+        if (patientLookup.rowCount === 0) {
+          return res.status(404).json({ message: "Patient not found" });
+        }
+        patientUserId = patientLookup.rows[0].user_id;
+      } else {
         patientLookup = await pool.query(
           `SELECT id FROM patients WHERE user_id = $1`,
           [patientUserId],
         );
-      }
 
-      if (patientLookup.rowCount === 0) {
-        return res.status(404).json({
-          message: "Patient profile not found for current user",
-        });
+        if (patientLookup.rowCount === 0) {
+          await pool.query(
+            `INSERT INTO patients (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING`,
+            [patientUserId],
+          );
+          patientLookup = await pool.query(
+            `SELECT id FROM patients WHERE user_id = $1`,
+            [patientUserId],
+          );
+        }
+
+        if (patientLookup.rowCount === 0) {
+          return res.status(404).json({
+            message: "Patient profile not found for current user",
+          });
+        }
       }
 
       const patient_id = patientLookup.rows[0].id;
@@ -614,6 +622,158 @@ router.patch(
     } catch (err) {
       console.error("CANCEL APPOINTMENT ERROR:", err);
       res.status(500).json({ message: "Server error" });
+    }
+  },
+);
+
+/**
+ * RESCHEDULE appointment
+ * Doctor or admin can change appointment date
+ */
+router.patch(
+  "/:id/reschedule",
+  authMiddleware,
+  hasPermission("APPROVE_APPOINTMENT"),
+  async (req, res) => {
+    const appointmentId = req.params.id;
+    const userId = req.user.id;
+    const role = req.user.role;
+    const { appointment_date } = req.body;
+
+    if (!appointment_date) {
+      return res.status(400).json({ message: "appointment_date is required" });
+    }
+
+    const dateObj = new Date(appointment_date);
+    if (Number.isNaN(dateObj.getTime())) {
+      return res.status(400).json({ message: "Invalid appointment_date" });
+    }
+    if (dateObj <= new Date()) {
+      return res
+        .status(400)
+        .json({ message: "Appointment date must be in the future" });
+    }
+
+    try {
+      const check = await pool.query(
+        `SELECT a.*, d.user_id AS doctor_user_id, p.user_id AS patient_user_id
+         FROM appointments a
+         JOIN doctors d ON d.id = a.doctor_id
+         JOIN patients p ON p.id = a.patient_id
+         WHERE a.id = $1`,
+        [appointmentId],
+      );
+
+      if (check.rowCount === 0) {
+        return res.status(404).json({ message: "Appointment not found" });
+      }
+
+      const appointment = check.rows[0];
+
+      if (role === "doctor" && appointment.doctor_user_id !== userId) {
+        return res
+          .status(403)
+          .json({ message: "You can only reschedule your own appointments" });
+      }
+
+      if (["completed", "cancelled"].includes(appointment.status)) {
+        return res.status(409).json({
+          message: `Cannot reschedule a ${appointment.status} appointment`,
+        });
+      }
+
+      const result = await pool.query(
+        `UPDATE appointments SET appointment_date = $1, status = 'scheduled' WHERE id = $2 RETURNING *`,
+        [appointment_date, appointmentId],
+      );
+
+      try {
+        await createNotificationsForUsers(
+          [appointment.patient_user_id, appointment.doctor_user_id],
+          {
+            type: "APPOINTMENT_RESCHEDULED",
+            title: "Appointment Rescheduled",
+            message: `Appointment rescheduled to ${appointment_date}`,
+            metadata: {
+              appointment_id: result.rows[0].id,
+              status: result.rows[0].status,
+            },
+          },
+        );
+      } catch (notificationErr) {
+        console.error(
+          "APPOINTMENT RESCHEDULE NOTIFICATION ERROR:",
+          notificationErr.message,
+        );
+      }
+
+      return res.json({
+        message: "Appointment rescheduled",
+        appointment: result.rows[0],
+      });
+    } catch (err) {
+      console.error("RESCHEDULE APPOINTMENT ERROR:", err);
+      if (err.code === "23505") {
+        return res
+          .status(409)
+          .json({ message: "Doctor already has an appointment at this time" });
+      }
+      return res.status(500).json({ message: "Server error" });
+    }
+  },
+);
+
+/**
+ * DELETE appointment
+ * Admin can hard-delete an appointment
+ */
+router.delete(
+  "/:id",
+  authMiddleware,
+  hasPermission("MANAGE_USERS"),
+  async (req, res) => {
+    const appointmentId = req.params.id;
+
+    try {
+      const check = await pool.query(
+        `SELECT a.*, d.user_id AS doctor_user_id, p.user_id AS patient_user_id
+         FROM appointments a
+         JOIN doctors d ON d.id = a.doctor_id
+         JOIN patients p ON p.id = a.patient_id
+         WHERE a.id = $1`,
+        [appointmentId],
+      );
+
+      if (check.rowCount === 0) {
+        return res.status(404).json({ message: "Appointment not found" });
+      }
+
+      await pool.query(`DELETE FROM appointments WHERE id = $1`, [
+        appointmentId,
+      ]);
+
+      try {
+        const appt = check.rows[0];
+        await createNotificationsForUsers(
+          [appt.patient_user_id, appt.doctor_user_id],
+          {
+            type: "APPOINTMENT_DELETED",
+            title: "Appointment Removed",
+            message: "An appointment has been removed from the system",
+            metadata: { appointment_id: parseInt(appointmentId) },
+          },
+        );
+      } catch (notificationErr) {
+        console.error(
+          "APPOINTMENT DELETE NOTIFICATION ERROR:",
+          notificationErr.message,
+        );
+      }
+
+      return res.json({ message: "Appointment deleted" });
+    } catch (err) {
+      console.error("DELETE APPOINTMENT ERROR:", err);
+      return res.status(500).json({ message: "Server error" });
     }
   },
 );

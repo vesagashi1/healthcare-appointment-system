@@ -6,6 +6,7 @@ import { format } from 'date-fns';
 import styles from './AdminPage.module.css';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
+import DatePicker from '../components/DatePicker';
 
 interface User {
   id: number;
@@ -376,20 +377,18 @@ const AdminPage = () => {
                 <div className={styles.filterRow}>
                   <div className={styles.filterField}>
                     <label className={styles.filterLabel}>Start Date</label>
-                    <input
-                      type="date"
-                      className={styles.filterInput}
-                      value={filters.start_date}
-                      onChange={(e) => setFilters({ ...filters, start_date: e.target.value })}
+                    <DatePicker
+                      selected={filters.start_date ? new Date(filters.start_date + 'T00:00:00') : null}
+                      onChange={(date) => setFilters({ ...filters, start_date: date ? format(date, 'yyyy-MM-dd') : '' })}
+                      placeholderText="Start date"
                     />
                   </div>
                   <div className={styles.filterField}>
                     <label className={styles.filterLabel}>End Date</label>
-                    <input
-                      type="date"
-                      className={styles.filterInput}
-                      value={filters.end_date}
-                      onChange={(e) => setFilters({ ...filters, end_date: e.target.value })}
+                    <DatePicker
+                      selected={filters.end_date ? new Date(filters.end_date + 'T00:00:00') : null}
+                      onChange={(date) => setFilters({ ...filters, end_date: date ? format(date, 'yyyy-MM-dd') : '' })}
+                      placeholderText="End date"
                     />
                   </div>
                 </div>

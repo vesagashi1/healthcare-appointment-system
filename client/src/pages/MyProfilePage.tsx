@@ -3,6 +3,8 @@ import { UserCircle2, Mail, CalendarDays, Droplets, Building2 } from 'lucide-rea
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
+import DatePicker from '../components/DatePicker';
+import { format } from 'date-fns';
 
 interface PatientProfile {
   id: number;
@@ -178,11 +180,11 @@ const MyProfilePage = () => {
               </div>
               <div>
                 <p className={labelClass}>Date of Birth</p>
-                <input
-                  className="input-field mt-1"
-                  type="date"
-                  value={form.date_of_birth}
-                  onChange={(e) => setForm((prev) => ({ ...prev, date_of_birth: e.target.value }))}
+                <DatePicker
+                  selected={form.date_of_birth ? new Date(form.date_of_birth + 'T00:00:00') : null}
+                  onChange={(date) => setForm((prev) => ({ ...prev, date_of_birth: date ? format(date, 'yyyy-MM-dd') : '' }))}
+                  placeholderText="Select date of birth"
+                  className="mt-1"
                 />
               </div>
               <div>

@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import api from '../services/api';
 import { requestWithRetry } from '../services/request';
 import { useToast } from '../contexts/ToastContext';
+import DatePicker from '../components/DatePicker';
+import { format } from 'date-fns';
 
 type ReportPayload = {
   generated_at: string;
@@ -159,11 +161,19 @@ const ReportsPage = () => {
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-5">
           <div>
             <label className="mb-1 block text-sm text-slate-300">Start Date</label>
-            <input className="input-field" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+            <DatePicker
+              selected={startDate ? new Date(startDate + 'T00:00:00') : null}
+              onChange={(date) => setStartDate(date ? format(date, 'yyyy-MM-dd') : '')}
+              placeholderText="Start date"
+            />
           </div>
           <div>
             <label className="mb-1 block text-sm text-slate-300">End Date</label>
-            <input className="input-field" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+            <DatePicker
+              selected={endDate ? new Date(endDate + 'T00:00:00') : null}
+              onChange={(date) => setEndDate(date ? format(date, 'yyyy-MM-dd') : '')}
+              placeholderText="End date"
+            />
           </div>
           <div>
             <label className="mb-1 block text-sm text-slate-300">Ward</label>
