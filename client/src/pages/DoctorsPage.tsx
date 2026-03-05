@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import {
   Stethoscope, X, Building2, Users, Plus, Pencil, Ban, RotateCcw, Trash2, CalendarCheck,
+  Search,
 } from 'lucide-react';
 
 /* ───── types ───── */
@@ -58,12 +59,16 @@ function Modal({ title, onClose, children, wide }: { title: string; onClose: () 
 /* ───── page ───── */
 
 const DoctorsPage = () => {
+  const PAGE_SIZE = 9;
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
 
   /* ── list ── */
   const [doctors, setDoctors] = useState<DoctorListItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchField, setSearchField] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
 
   /* ── detail ── */
   const [selectedDoctor, setSelectedDoctor] = useState<DoctorDetail | null>(null);
@@ -201,6 +206,38 @@ const DoctorsPage = () => {
     } catch (err: any) { alert(err?.response?.data?.message || 'Failed to unassign ward'); }
   };
 
+  const filteredDoctors = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return doctors;
+
+    return doctors.filter((doctor) => {
+      const targets =
+        searchField === 'name'
+          ? [doctor.name]
+          : searchField === 'email'
+            ? [doctor.email]
+            : searchField === 'specialization'
+              ? [doctor.specialization]
+              : [doctor.name, doctor.email, doctor.specialization];
+
+      return targets.some((value) => value.toLowerCase().includes(q));
+    });
+  }, [doctors, searchField, searchQuery]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredDoctors.length / PAGE_SIZE));
+  const paginatedDoctors = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filteredDoctors.slice(start, start + PAGE_SIZE);
+  }, [currentPage, filteredDoctors]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchField, searchQuery]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
+
   /* ── loading ── */
 
   if (loading) {
@@ -228,15 +265,34 @@ const DoctorsPage = () => {
         )}
       </div>
 
+      <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="relative md:col-span-2">
+          <Search className="h-4 w-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            className="input-field w-full pl-9"
+            placeholder="Search doctors..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+        <select className="input-field w-full" value={searchField} onChange={(e) => setSearchField(e.target.value)}>
+          <option value="all">Search: All fields</option>
+          <option value="name">Search: Name</option>
+          <option value="email">Search: Email</option>
+          <option value="specialization">Search: Specialization</option>
+        </select>
+      </div>
+
       {/* Cards grid */}
-      {doctors.length === 0 ? (
+      {filteredDoctors.length === 0 ? (
         <div className="card text-center py-12">
           <Stethoscope className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <p className="text-slate-300">No doctors found</p>
+          <p className="text-slate-300">{doctors.length === 0 ? 'No doctors found' : 'No doctors match your search'}</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {doctors.map((doctor) => (
+          {paginatedDoctors.map((doctor) => (
             <div key={doctor.id} className={`card hover:shadow-lg transition-shadow ${doctor.active === false ? 'opacity-60' : ''}`}>
               <button type="button" onClick={() => openDetail(doctor.id)} className="text-left w-full">
                 <div className="flex items-start justify-between mb-4">
@@ -289,6 +345,22 @@ const DoctorsPage = () => {
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {filteredDoctors.length > 0 && (
+        <div className="mt-6 flex items-center justify-between">
+          <p className="text-sm text-slate-400">
+            Page {currentPage} of {totalPages} ({filteredDoctors.length} result{filteredDoctors.length !== 1 ? 's' : ''})
+          </p>
+          <div className="flex gap-2">
+            <button className="btn-secondary" onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1}>
+              Previous
+            </button>
+            <button className="btn-secondary" onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>
+              Next
+            </button>
+          </div>
         </div>
       )}
 

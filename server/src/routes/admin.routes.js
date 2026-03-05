@@ -3,6 +3,7 @@ const authMiddleware = require("../middlewares/auth.middleware");
 const hasPermission = require("../middlewares/permission.middleware");
 const bcrypt = require("bcrypt");
 const pool = require("../config/db");
+const auditLog = require("../middlewares/auditLogger");
 
 const router = express.Router();
 
@@ -77,6 +78,11 @@ router.get(
       query += ` GROUP BY u.id, u.name, u.email, u.created_at ORDER BY u.created_at DESC`;
 
       const result = await pool.query(query, values);
+
+      await auditLog({
+        req,
+        action: "VIEW_USERS",
+      });
 
       res.json({
         message: "Users retrieved successfully",
@@ -212,6 +218,11 @@ router.post(
 
       await ensureRoleProfile(userId, role);
 
+      await auditLog({
+        req,
+        action: "CREATE_USER",
+      });
+
       res.status(201).json({
         message: "User created successfully",
         user: {
@@ -309,6 +320,11 @@ router.patch(
         await ensureRoleProfile(userId, role);
       }
 
+      await auditLog({
+        req,
+        action: "UPDATE_USER",
+      });
+
       // Get updated user
       const result = await pool.query(
         `
@@ -369,6 +385,11 @@ router.delete(
       // Delete user (cascade will handle related records)
       await pool.query(`DELETE FROM users WHERE id = $1`, [userId]);
 
+      await auditLog({
+        req,
+        action: "DELETE_USER",
+      });
+
       res.json({
         message: "User deleted successfully",
       });
@@ -390,7 +411,40 @@ router.get(
     try {
       const { user_id, action, start_date, end_date, limit = 100 } = req.query;
 
-      let query = `
+      let whereClause = `WHERE 1=1`;
+      const values = [];
+      let paramCount = 0;
+
+      if (user_id) {
+        whereClause += ` AND al.user_id = $${++paramCount}`;
+        values.push(user_id);
+      }
+
+      if (action) {
+        whereClause += ` AND al.action = $${++paramCount}`;
+        values.push(action);
+      }
+
+      if (start_date) {
+        whereClause += ` AND al.created_at >= $${++paramCount}`;
+        values.push(start_date);
+      }
+
+      if (end_date) {
+        whereClause += ` AND al.created_at <= $${++paramCount}`;
+        values.push(end_date);
+      }
+
+      const countQuery = `
+        SELECT COUNT(*)::int AS total_count
+        FROM audit_logs al
+        ${whereClause}
+      `;
+
+      const countResult = await pool.query(countQuery, values);
+      const totalCount = countResult.rows[0]?.total_count || 0;
+
+      const query = `
         SELECT 
           al.id,
           al.user_id,
@@ -403,41 +457,22 @@ router.get(
           u.email as user_email
         FROM audit_logs al
         LEFT JOIN users u ON al.user_id = u.id
-        WHERE 1=1
+        ${whereClause}
       `;
+      const pagedQuery = `${query} ORDER BY al.created_at DESC LIMIT $${++paramCount}`;
+      const pagedValues = [...values, parseInt(limit)];
+      const result = await pool.query(pagedQuery, pagedValues);
 
-      const values = [];
-      let paramCount = 0;
-
-      if (user_id) {
-        query += ` AND al.user_id = $${++paramCount}`;
-        values.push(user_id);
-      }
-
-      if (action) {
-        query += ` AND al.action = $${++paramCount}`;
-        values.push(action);
-      }
-
-      if (start_date) {
-        query += ` AND al.created_at >= $${++paramCount}`;
-        values.push(start_date);
-      }
-
-      if (end_date) {
-        query += ` AND al.created_at <= $${++paramCount}`;
-        values.push(end_date);
-      }
-
-      query += ` ORDER BY al.created_at DESC LIMIT $${++paramCount}`;
-      values.push(parseInt(limit));
-
-      const result = await pool.query(query, values);
+      await auditLog({
+        req,
+        action: "VIEW_AUDIT_LOGS",
+      });
 
       res.json({
         message: "Audit logs retrieved successfully",
         logs: result.rows,
         count: result.rowCount,
+        total_count: totalCount,
       });
     } catch (err) {
       console.error("GET AUDIT LOGS ERROR:", err);

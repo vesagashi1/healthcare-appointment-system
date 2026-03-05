@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
-import { Building2, Plus, X } from 'lucide-react';
+import { Building2, Plus, X, Search } from 'lucide-react';
 
 interface WardListItem {
   id: number;
@@ -87,11 +87,15 @@ function Modal(props: {
 }
 
 const WardsPage = () => {
+  const PAGE_SIZE = 9;
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
 
   const [wards, setWards] = useState<WardListItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchField, setSearchField] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
 
   const [selectedWardId, setSelectedWardId] = useState<number | null>(null);
   const [selectedWard, setSelectedWard] = useState<WardDetail | null>(null);
@@ -333,6 +337,40 @@ const WardsPage = () => {
     }
   };
 
+  const filteredWards = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return wards;
+
+    return wards.filter((ward) => {
+      const targets =
+        searchField === 'name'
+          ? [ward.name]
+          : searchField === 'patient_count'
+            ? [String(ward.patient_count)]
+            : searchField === 'doctor_count'
+              ? [String(ward.doctor_count)]
+              : searchField === 'nurse_count'
+                ? [String(ward.nurse_count)]
+                : [ward.name, String(ward.patient_count), String(ward.doctor_count), String(ward.nurse_count)];
+
+      return targets.some((value) => value.toLowerCase().includes(q));
+    });
+  }, [searchField, searchQuery, wards]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredWards.length / PAGE_SIZE));
+  const paginatedWards = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filteredWards.slice(start, start + PAGE_SIZE);
+  }, [currentPage, filteredWards]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchField, searchQuery]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -356,14 +394,34 @@ const WardsPage = () => {
         )}
       </div>
 
-      {wards.length === 0 ? (
+      <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="relative md:col-span-2">
+          <Search className="h-4 w-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            className="input-field w-full pl-9"
+            placeholder="Search wards..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+        <select className="input-field w-full" value={searchField} onChange={(e) => setSearchField(e.target.value)}>
+          <option value="all">Search: All fields</option>
+          <option value="name">Search: Ward Name</option>
+          <option value="patient_count">Search: Patient Count</option>
+          <option value="doctor_count">Search: Doctor Count</option>
+          <option value="nurse_count">Search: Nurse Count</option>
+        </select>
+      </div>
+
+      {filteredWards.length === 0 ? (
         <div className="rounded-lg border border-slate-800 bg-slate-950/60 text-center py-12">
           <Building2 className="h-12 w-12 text-slate-400 mx-auto mb-4" />
-          <p className="text-slate-300">No wards found</p>
+          <p className="text-slate-300">{wards.length === 0 ? 'No wards found' : 'No wards match your search'}</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {wards.map((ward) => (
+          {paginatedWards.map((ward) => (
             <div
               key={ward.id}
               className="rounded-lg border border-slate-800 bg-slate-950/60 p-6 hover:bg-slate-950/80 transition-colors"
@@ -442,6 +500,30 @@ const WardsPage = () => {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {filteredWards.length > 0 && (
+        <div className="mt-6 flex items-center justify-between">
+          <p className="text-sm text-slate-400">
+            Page {currentPage} of {totalPages} ({filteredWards.length} result{filteredWards.length !== 1 ? 's' : ''})
+          </p>
+          <div className="flex gap-2">
+            <button
+              className="btn-secondary"
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+            >
+              Previous
+            </button>
+            <button
+              className="btn-secondary"
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+            >
+              Next
+            </button>
+          </div>
         </div>
       )}
 

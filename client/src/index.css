@@ -104,3 +104,7 @@
   background-color: #6366f1 !important;
   color: #fff !important;
 }
+
+.datepicker-popper {
+  z-index: 80 !important;
+}

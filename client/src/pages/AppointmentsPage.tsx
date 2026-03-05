@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import api from "../services/api";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
@@ -14,6 +14,7 @@ import {
   Eye,
   Stethoscope,
   User,
+  Search,
 } from "lucide-react";
 import { format } from "date-fns";
 import DatePicker from "../components/DatePicker";
@@ -92,6 +93,7 @@ const STATUS_TABS = [
 ] as const;
 
 const AppointmentsPage = () => {
+  const PAGE_SIZE = 8;
   const { user } = useAuth();
   const toast = useToast();
   const isAdmin = user?.role === "admin";
@@ -103,6 +105,9 @@ const AppointmentsPage = () => {
   const [patients, setPatients] = useState<PatientOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [searchField, setSearchField] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
 
   // modals
   const [showCreate, setShowCreate] = useState(false);
@@ -260,6 +265,44 @@ const AppointmentsPage = () => {
       ? appointments
       : appointments.filter((a) => a.status === statusFilter);
 
+  const searchedAppointments = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return filtered;
+
+    return filtered.filter((appt) => {
+      const appointmentDate = format(
+        new Date(appt.appointment_date),
+        "MMM d, yyyy h:mm a",
+      );
+      const targets =
+        searchField === "doctor"
+          ? [appt.doctor_name]
+          : searchField === "patient"
+            ? [appt.patient_name]
+            : searchField === "status"
+              ? [appt.status]
+              : searchField === "date"
+                ? [appointmentDate]
+                : [appt.doctor_name, appt.patient_name, appt.status, appointmentDate];
+
+      return targets.some((value) => value.toLowerCase().includes(q));
+    });
+  }, [filtered, searchField, searchQuery]);
+
+  const totalPages = Math.max(1, Math.ceil(searchedAppointments.length / PAGE_SIZE));
+  const paginatedAppointments = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return searchedAppointments.slice(start, start + PAGE_SIZE);
+  }, [currentPage, searchedAppointments]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [statusFilter, searchField, searchQuery]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
+
   const canReschedule = (a: Appointment) =>
     (isDoctor || isAdmin) && !["completed", "cancelled"].includes(a.status);
 
@@ -324,15 +367,37 @@ const AppointmentsPage = () => {
         })}
       </div>
 
+      <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="relative md:col-span-2">
+          <Search className="h-4 w-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            className="input-field w-full pl-9"
+            placeholder="Search appointments..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+        <select className="input-field w-full" value={searchField} onChange={(e) => setSearchField(e.target.value)}>
+          <option value="all">Search: All fields</option>
+          <option value="doctor">Search: Doctor</option>
+          <option value="patient">Search: Patient</option>
+          <option value="status">Search: Status</option>
+          <option value="date">Search: Date</option>
+        </select>
+      </div>
+
       {/* list */}
-      {filtered.length === 0 ? (
+      {searchedAppointments.length === 0 ? (
         <div className="card text-center py-12">
           <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <p className="text-slate-300">No appointments found</p>
+          <p className="text-slate-300">
+            {filtered.length === 0 ? "No appointments found" : "No appointments match your search"}
+          </p>
         </div>
       ) : (
         <div className="grid gap-4">
-          {filtered.map((appt) => (
+          {paginatedAppointments.map((appt) => (
             <div
               key={appt.id}
               className="card hover:border-slate-600 transition-colors"
@@ -424,6 +489,31 @@ const AppointmentsPage = () => {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {searchedAppointments.length > 0 && (
+        <div className="mt-6 flex items-center justify-between">
+          <p className="text-sm text-slate-400">
+            Page {currentPage} of {totalPages} ({searchedAppointments.length} result
+            {searchedAppointments.length !== 1 ? "s" : ""})
+          </p>
+          <div className="flex gap-2">
+            <button
+              className="btn-secondary"
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+            >
+              Previous
+            </button>
+            <button
+              className="btn-secondary"
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+            >
+              Next
+            </button>
+          </div>
         </div>
       )}
 

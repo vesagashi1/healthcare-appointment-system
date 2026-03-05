@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Navigate } from "react-router-dom";
 import {
   Users,
@@ -10,6 +10,7 @@ import {
   Trash2,
   UserPlus,
   Heart,
+  Search,
 } from "lucide-react";
 import api from "../services/api";
 import { useAuth } from "../contexts/AuthContext";
@@ -93,6 +94,7 @@ function Modal({
 /* ───── page ───── */
 
 export default function CaregiversPage() {
+  const PAGE_SIZE = 9;
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
 
@@ -106,6 +108,9 @@ export default function CaregiversPage() {
   /* ── list ── */
   const [caregivers, setCaregivers] = useState<CaregiverListItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchField, setSearchField] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
 
   /* ── detail ── */
   const [selectedCaregiver, setSelectedCaregiver] =
@@ -323,6 +328,39 @@ export default function CaregiversPage() {
     }
   };
 
+  const filteredCaregivers = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return caregivers;
+
+    return caregivers.filter((cg) => {
+      const targets =
+        searchField === "name"
+          ? [cg.name]
+          : searchField === "email"
+            ? [cg.email]
+            : [cg.name, cg.email];
+
+      return targets.some((value) => value.toLowerCase().includes(q));
+    });
+  }, [caregivers, searchField, searchQuery]);
+
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredCaregivers.length / PAGE_SIZE),
+  );
+  const paginatedCaregivers = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filteredCaregivers.slice(start, start + PAGE_SIZE);
+  }, [currentPage, filteredCaregivers]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchField, searchQuery]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
+
   /* ── guards ── */
 
   if (!user) return <Navigate to="/login" replace />;
@@ -353,15 +391,41 @@ export default function CaregiversPage() {
         )}
       </div>
 
+      <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="relative md:col-span-2">
+          <Search className="h-4 w-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            className="input-field w-full pl-9"
+            placeholder="Search caregivers..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+        <select
+          className="input-field w-full"
+          value={searchField}
+          onChange={(e) => setSearchField(e.target.value)}
+        >
+          <option value="all">Search: All fields</option>
+          <option value="name">Search: Name</option>
+          <option value="email">Search: Email</option>
+        </select>
+      </div>
+
       {/* Cards grid */}
-      {caregivers.length === 0 ? (
+      {filteredCaregivers.length === 0 ? (
         <div className="card text-center py-12">
           <Heart className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <p className="text-slate-300">No caregivers found</p>
+          <p className="text-slate-300">
+            {caregivers.length === 0
+              ? "No caregivers found"
+              : "No caregivers match your search"}
+          </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {caregivers.map((cg) => (
+          {paginatedCaregivers.map((cg) => (
             <div
               key={cg.id}
               className={`card hover:shadow-lg transition-shadow ${
@@ -449,6 +513,31 @@ export default function CaregiversPage() {
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {filteredCaregivers.length > 0 && (
+        <div className="mt-6 flex items-center justify-between">
+          <p className="text-sm text-slate-400">
+            Page {currentPage} of {totalPages} ({filteredCaregivers.length}{" "}
+            result{filteredCaregivers.length !== 1 ? "s" : ""})
+          </p>
+          <div className="flex gap-2">
+            <button
+              className="btn-secondary"
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+            >
+              Previous
+            </button>
+            <button
+              className="btn-secondary"
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+            >
+              Next
+            </button>
+          </div>
         </div>
       )}
 
